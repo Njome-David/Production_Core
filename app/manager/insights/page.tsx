@@ -2,11 +2,15 @@
 
 import React, { useMemo } from "react"
 import { motion } from "framer-motion"
-import { ChartLineUp, CurrencyDollar, FileText, ArrowUpRight, ArrowDownRight, Package } from "@phosphor-icons/react"
+import { ChartLineUp, CurrencyDollar, FileText, ArrowUpRight, Package } from "@phosphor-icons/react"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
+import { useLanguage } from "@/providers/LanguageProvider"
+import { t } from "@/lib/i18n"
+import { calculateProductionCost } from "@/lib/production-calculations"
 
 export default function InsightsPage() {
-  const { inventoryLedger, activeMOs, materials, products } = useMockData()
+  const { inventoryLedger, activeMOs, materials, products, boms, lines, machines } = useMockData()
+  const { language } = useLanguage()
 
   // Calculate Insights
   const insights = useMemo(() => {
@@ -16,23 +20,13 @@ export default function InsightsPage() {
       
     const completedOrders = activeMOs.filter(mo => mo.status === "COMPLETED")
     
-    // Estimate cost of completed orders
+    // Reuse the shared production formula so insight margins stay aligned with launch validation.
     const estimatedCostOfGoods = completedOrders.reduce((sum, mo) => {
-      const bom = mo.bom
-      if (!bom) return sum
-      const materialCosts = bom.lines.reduce((matSum, line) => {
-        const material = materials.find(m => m.id === line.materialId)
-        if (!material) return matSum
-        return matSum + (line.quantityPerUnit * mo.targetQty * material.costAvg)
-      }, 0)
-      return sum + materialCosts
+      return sum + calculateProductionCost({ productId: mo.productId, lineId: mo.lineId, targetQty: mo.targetQty, products, boms, materials, lines, machines }).totalCost
     }, 0)
     
-    // Estimated revenue
     const estimatedRevenue = completedOrders.reduce((sum, mo) => {
-      const product = products.find(p => p.id === mo.productId)
-      if (!product) return sum
-      return sum + (product.price * mo.targetQty)
+      return sum + calculateProductionCost({ productId: mo.productId, lineId: mo.lineId, targetQty: mo.targetQty, products, boms, materials, lines, machines }).targetSellingPrice
     }, 0)
 
     const grossMargin = estimatedRevenue - estimatedCostOfGoods
@@ -44,7 +38,7 @@ export default function InsightsPage() {
       estimatedRevenue,
       grossMargin
     }
-  }, [inventoryLedger, activeMOs, materials, products])
+  }, [inventoryLedger, activeMOs, materials, products, boms, lines, machines])
 
   return (
     <div className="w-full flex flex-col gap-8 pb-12">
@@ -55,8 +49,8 @@ export default function InsightsPage() {
           transition={{ ease: [0.32, 0.72, 0, 1] as const, duration: 0.6 }}
           className="max-w-xl"
         >
-          <h1 className="text-4xl font-display text-foreground font-bold tracking-tight mb-2">Financial Insights</h1>
-          <p className="text-muted-foreground text-lg">Yield analysis, resource consumption costs, and operational variance reporting.</p>
+          <h1 className="text-4xl font-display text-foreground font-bold tracking-tight mb-2">{t(language, 'financial-insights')}</h1>
+          <p className="text-muted-foreground text-lg">{t(language, 'insights-desc')}</p>
         </motion.div>
       </div>
 
@@ -70,7 +64,7 @@ export default function InsightsPage() {
           <div className="w-10 h-10 rounded bg-emerald-500/10 flex items-center justify-center mb-2">
             <CurrencyDollar className="w-5 h-5 text-emerald-600" weight="duotone" />
           </div>
-          <span className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">Estimated Revenue</span>
+          <span className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">{t(language, 'estimated-revenue')}</span>
           <div className="flex items-end gap-2">
             <span className="text-3xl text-foreground font-display font-bold">{insights.estimatedRevenue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} FCFA</span>
           </div>
@@ -80,7 +74,7 @@ export default function InsightsPage() {
           <div className="w-10 h-10 rounded bg-amber-500/10 flex items-center justify-center mb-2">
             <ChartLineUp className="w-5 h-5 text-amber-600" weight="duotone" />
           </div>
-          <span className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">Cost of Goods (COGS)</span>
+          <span className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">{t(language, 'cost-of-goods')}</span>
           <div className="flex items-end gap-2">
             <span className="text-3xl text-foreground font-display font-bold">{insights.estimatedCostOfGoods.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} FCFA</span>
           </div>
@@ -90,7 +84,7 @@ export default function InsightsPage() {
           <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center mb-2">
             <ArrowUpRight className="w-5 h-5 text-primary" weight="duotone" />
           </div>
-          <span className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">Gross Margin</span>
+          <span className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">{t(language, 'gross-margin')}</span>
           <div className="flex items-end gap-2">
             <span className="text-3xl text-foreground font-display font-bold">{insights.grossMargin.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} FCFA</span>
           </div>
@@ -100,7 +94,7 @@ export default function InsightsPage() {
           <div className="w-10 h-10 rounded bg-indigo-500/10 flex items-center justify-center mb-2">
             <Package className="w-5 h-5 text-indigo-600" weight="duotone" />
           </div>
-          <span className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">Completed MOs</span>
+          <span className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">{t(language, 'completed-mos')}</span>
           <div className="flex items-end gap-2">
             <span className="text-3xl text-foreground font-display font-bold">{insights.completedOrdersCount}</span>
           </div>
@@ -115,12 +109,14 @@ export default function InsightsPage() {
           className="flex flex-col border border-border/50 rounded-2xl bg-card overflow-hidden shadow-sm"
         >
           <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center justify-between">
-            <h3 className="font-display text-foreground font-bold text-lg">Recent Purchasing Ledger</h3>
+            <h3 className="font-display text-foreground font-bold text-lg">{t(language, 'recent-ledger')}</h3>
             <FileText className="w-5 h-5 text-muted-foreground" />
           </div>
           <div className="flex-1 overflow-y-auto max-h-[400px]">
              {inventoryLedger.filter(l => l.type === "REFILL").slice(0, 10).map(entry => {
                 const mat = materials.find(m => m.id === entry.materialId)
+                const unitWord = mat?.unit || (language === 'fr' ? 'Unités' : 'Units')
+                const singularUnitWord = mat?.unit || (language === 'fr' ? 'Unité' : 'Unit')
                 return (
                   <div key={entry.id} className="p-4 border-b border-border/30 last:border-0 flex flex-col gap-1 hover:bg-muted/10 transition-colors">
                     <div className="flex justify-between items-start">
@@ -131,13 +127,13 @@ export default function InsightsPage() {
                     </div>
                     <div className="flex justify-between items-center text-xs text-muted-foreground">
                       <span className="font-mono">{new Date(entry.timestamp).toLocaleString()}</span>
-                      <span className="font-mono">{entry.quantity} {mat?.unit || 'Units'} at {(entry.totalValue / entry.quantity).toFixed(0)} FCFA/{mat?.unit || 'Unit'}</span>
+                      <span className="font-mono">{entry.quantity} {unitWord} {language === 'fr' ? 'à' : 'at'} {(entry.totalValue / entry.quantity).toFixed(0)} FCFA/{singularUnitWord}</span>
                     </div>
                   </div>
                 )
              })}
              {inventoryLedger.filter(l => l.type === "REFILL").length === 0 && (
-               <div className="p-8 text-center text-sm text-muted-foreground">No recent purchasing records.</div>
+               <div className="p-8 text-center text-sm text-muted-foreground">{t(language, 'no-records')}</div>
              )}
           </div>
         </motion.div>
@@ -149,7 +145,7 @@ export default function InsightsPage() {
           className="flex flex-col border border-border/50 rounded-2xl bg-card overflow-hidden shadow-sm"
         >
           <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center justify-between">
-            <h3 className="font-display text-foreground font-bold text-lg">Margin Visualizer</h3>
+            <h3 className="font-display text-foreground font-bold text-lg">{t(language, 'margin-visualizer')}</h3>
             <ChartLineUp className="w-5 h-5 text-muted-foreground" />
           </div>
           <div className="p-6 flex-1 flex flex-col items-center justify-center gap-4 min-h-[300px]">
@@ -216,10 +212,10 @@ export default function InsightsPage() {
                     </svg>
                     
                     {/* Centered statistics HUD */}
-                    <div className="absolute flex flex-col items-center justify-center text-center">
-                      <span className="text-[10px] font-mono font-bold text-muted-foreground uppercase tracking-wider">Gross Margin</span>
+                    <div className="absolute flex flex-col items-center justify-center text-center font-sans">
+                      <span className="text-[10px] font-mono font-bold text-muted-foreground uppercase tracking-wider">{t(language, 'gross-margin')}</span>
                       <span className="text-xl font-display font-bold text-foreground">{marginPct.toFixed(1)}%</span>
-                      <span className="text-[9px] text-emerald-500 font-mono mt-0.5 uppercase tracking-widest font-bold">Healthy</span>
+                      <span className="text-[9px] text-emerald-500 font-mono mt-0.5 uppercase tracking-widest font-bold">{t(language, 'healthy')}</span>
                     </div>
                   </div>
 
@@ -228,21 +224,21 @@ export default function InsightsPage() {
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
                         <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                        <span className="text-muted-foreground font-medium">Revenue Stream</span>
+                        <span className="text-muted-foreground font-medium">{t(language, 'revenue-stream')}</span>
                       </div>
                       <span className="font-mono text-foreground font-bold">100%</span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
                         <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                        <span className="text-muted-foreground font-medium">Cost of Goods (COGS)</span>
+                        <span className="text-muted-foreground font-medium">{t(language, 'cost-of-goods')}</span>
                       </div>
                       <span className="font-mono text-foreground font-bold">{cogsPct.toFixed(1)}%</span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
                         <div className="w-2.5 h-2.5 rounded bg-primary" />
-                        <span className="text-muted-foreground font-medium">Net Gross Profit Margin</span>
+                        <span className="text-muted-foreground font-medium">{t(language, 'net-profit-margin')}</span>
                       </div>
                       <span className="font-mono text-foreground font-bold">{marginPct.toFixed(1)}%</span>
                     </div>
@@ -252,7 +248,7 @@ export default function InsightsPage() {
             })()}
             
             <p className="text-xs text-muted-foreground font-mono mt-4 text-center max-w-xs leading-relaxed">
-              Margin visualization is based on moving average material costs versus targeted product MSRP.
+              {t(language, 'margin-note')}
             </p>
           </div>
         </motion.div>

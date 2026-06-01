@@ -4,9 +4,13 @@ import React, { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Archive, Plus, Cube, WarningCircle, CheckCircle, Warning, FileText, DownloadSimple, X } from "@phosphor-icons/react"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
+import { useLanguage } from "@/providers/LanguageProvider"
+import { t } from "@/lib/i18n"
+import { getProjectedStock } from "@/lib/production-calculations"
 
 export default function InventoryPage() {
-  const { materials, recordInventoryTransaction, inventoryLedger, addMaterial } = useMockData()
+  const { materials, recordInventoryTransaction, inventoryLedger, addMaterial, activeMOs, boms } = useMockData()
+  const { language } = useLanguage()
   const [showRefillModal, setShowRefillModal] = useState(false)
   const [selectedMaterialId, setSelectedMaterialId] = useState<string>("")
   const [refillQty, setRefillQty] = useState<number>(0)
@@ -21,6 +25,7 @@ export default function InventoryPage() {
   const [newMatMax, setNewMatMax] = useState<number>(10000)
   const [newMatUnit, setNewMatUnit] = useState<string>("Kg")
   const [newMatCost, setNewMatCost] = useState<number>(350)
+  const [newMatNote, setNewMatNote] = useState("")
 
   const handleProvisionSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,7 +44,8 @@ export default function InventoryPage() {
       threshold: newMatThreshold,
       maxValue: newMatMax,
       unit: newMatUnit,
-      costAvg: newMatCost
+      costAvg: newMatCost,
+      note: newMatNote
     })
 
     setShowProvisionModal(false)
@@ -47,6 +53,7 @@ export default function InventoryPage() {
     setNewMatThreshold(1000)
     setNewMatMax(10000)
     setNewMatCost(350)
+    setNewMatNote("")
   }
 
   const handleRefillSubmit = (e: React.FormEvent) => {
@@ -70,15 +77,27 @@ export default function InventoryPage() {
   }
 
   const getStatusIndicator = (qty: number, threshold: number, maxValue: number) => {
-    if (qty <= threshold) return { icon: <WarningCircle weight="fill" className="text-red-500 w-5 h-5" />, label: "SHORTFALL", color: "text-red-500", bg: "bg-red-500/10" }
-    if (qty <= threshold * 1.5) return { icon: <Warning weight="fill" className="text-amber-500 w-5 h-5" />, label: "WARNING", color: "text-amber-500", bg: "bg-amber-500/10" }
-    if (qty >= maxValue * 0.9) return { icon: <Archive weight="fill" className="text-sky-500 w-5 h-5" />, label: "OVERSATURATED", color: "text-sky-500", bg: "bg-sky-500/10" }
-    return { icon: <CheckCircle weight="fill" className="text-emerald-500 w-5 h-5" />, label: "HEALTHY", color: "text-emerald-500", bg: "bg-emerald-500/10" }
+    if (qty <= threshold) return { icon: <WarningCircle weight="fill" className="text-red-500 w-5 h-5" />, label: t(language, 'shortfall'), color: "text-red-500", bg: "bg-red-500/10" }
+    if (qty <= threshold * 1.5) return { icon: <Warning weight="fill" className="text-amber-500 w-5 h-5" />, label: t(language, 'warning'), color: "text-amber-500", bg: "bg-amber-500/10" }
+    if (qty >= maxValue * 0.9) return { icon: <Archive weight="fill" className="text-sky-500 w-5 h-5" />, label: t(language, 'oversaturated'), color: "text-sky-500", bg: "bg-sky-500/10" }
+    return { icon: <CheckCircle weight="fill" className="text-emerald-500 w-5 h-5" />, label: t(language, 'healthy-stock'), color: "text-emerald-500", bg: "bg-emerald-500/10" }
   }
 
   const displayedMaterials = showShortfallOnly 
     ? materials.filter(m => m.balanceVolume <= m.threshold)
     : materials
+
+  const committedDemandByMaterial = React.useMemo(() => {
+    return activeMOs
+      .filter(mo => mo.status === "PENDING" || mo.status === "IN_PROGRESS")
+      .reduce<Record<string, number>>((acc, mo) => {
+        const bom = boms.find(item => item.productId === mo.productId)
+        bom?.lines.forEach(line => {
+          acc[line.materialId] = (acc[line.materialId] ?? 0) + line.quantityPerUnit * mo.targetQty
+        })
+        return acc
+      }, {})
+  }, [activeMOs, boms])
 
   return (
     <div className="w-full flex flex-col gap-8 pb-12 relative min-h-[calc(100dvh-64px)]">
@@ -89,8 +108,8 @@ export default function InventoryPage() {
           transition={{ ease: [0.32, 0.72, 0, 1] as const, duration: 0.6 }}
           className="max-w-xl"
         >
-          <h1 className="text-4xl font-display text-foreground font-bold tracking-tight mb-2">Inventory Ledger</h1>
-          <p className="text-muted-foreground text-lg">Centralized tracking for raw materials, WIP, and finished goods.</p>
+          <h1 className="text-4xl font-display text-foreground font-bold tracking-tight mb-2">{t(language, 'inventory-ledger')}</h1>
+          <p className="text-muted-foreground text-lg">{t(language, 'inventory-desc')}</p>
         </motion.div>
 
         <div className="flex gap-2">
@@ -101,7 +120,7 @@ export default function InventoryPage() {
             className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition-colors ${showShortfallOnly ? 'bg-red-500 text-white' : 'bg-card border border-border text-foreground hover:bg-muted'}`}
           >
             <Archive weight="bold" className="w-5 h-5" />
-            Low Stock Only
+            {t(language, 'low-stock-only')}
           </motion.button>
 
           <motion.button 
@@ -111,7 +130,7 @@ export default function InventoryPage() {
             className="flex items-center gap-2 bg-card border border-border text-foreground px-5 py-3 rounded-xl font-bold hover:bg-muted transition-colors"
           >
             <Plus weight="bold" className="w-5 h-5" />
-            Provision Material
+            {t(language, 'provision-material')}
           </motion.button>
 
           <motion.button 
@@ -121,7 +140,7 @@ export default function InventoryPage() {
             className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-3 rounded-xl font-bold shadow-[0_4px_14px_0_rgba(16,185,129,0.39)] hover:bg-primary/90 transition-colors"
           >
             <DownloadSimple weight="bold" className="w-5 h-5" />
-            Log Manual Refill
+            {t(language, 'log-refill')}
           </motion.button>
         </div>
       </div>
@@ -137,13 +156,14 @@ export default function InventoryPage() {
             className="flex flex-col border border-border/50 rounded-2xl bg-card overflow-hidden shadow-sm"
           >
             <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center justify-between">
-              <h3 className="font-display text-foreground font-bold text-lg">Raw Material Balance</h3>
+              <h3 className="font-display text-foreground font-bold text-lg">{t(language, 'raw-material')}</h3>
             </div>
             
             <div className="flex flex-col divide-y divide-border/50">
               {displayedMaterials.map(mat => {
                 const status = getStatusIndicator(mat.balanceVolume, mat.threshold, mat.maxValue)
                 const fillPercentage = Math.min(100, Math.max(0, (mat.balanceVolume / mat.maxValue) * 100))
+                const projection = getProjectedStock(mat, committedDemandByMaterial[mat.id] ?? 0)
                 
                 return (
                   <div key={mat.id} className="p-6 hover:bg-muted/10 transition-colors flex flex-col gap-4">
@@ -166,7 +186,8 @@ export default function InventoryPage() {
                           <span className="font-mono text-2xl text-foreground font-bold">{Math.round(mat.balanceVolume).toLocaleString()}</span>
                           <span className="text-sm text-muted-foreground">{mat.unit}</span>
                         </div>
-                        <span className="text-xs text-muted-foreground mt-1">Avg Cost: <span className="font-mono text-foreground">{Math.round(mat.costAvg).toLocaleString()} FCFA</span> / {mat.unit}</span>
+                        <span className="text-xs text-muted-foreground mt-1">{t(language, 'avg-cost')} <span className="font-mono text-foreground">{Math.round(mat.costAvg).toLocaleString()} FCFA</span> / {mat.unit}</span>
+                        <span className="text-xs text-muted-foreground">{t(language, 'threshold')} <span className="font-mono text-red-500">{Math.round(mat.threshold).toLocaleString()}</span> / {t(language, 'max')} <span className="font-mono text-red-500">{Math.round(mat.maxValue).toLocaleString()}</span></span>
                       </div>
 
                       {/* Status */}
@@ -190,8 +211,27 @@ export default function InventoryPage() {
                           style={{ width: `${fillPercentage}%` }}
                         />
                       </div>
-                      <span className="text-xs text-muted-foreground font-mono w-10 shrink-0">MAX</span>
+                      <span className="text-xs text-muted-foreground font-mono w-10 shrink-0">{language === 'fr' ? 'MAX' : 'MAX'}</span>
                     </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                      <div className="p-3 rounded-lg bg-muted/20 border border-border/40">
+                        <span className="block text-muted-foreground uppercase font-mono">{t(language, 'forecast-consumption')}</span>
+                        <span className="font-mono font-bold text-red-500">{projection.forecast.toLocaleString()} {mat.unit}</span>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/20 border border-border/40">
+                        <span className="block text-muted-foreground uppercase font-mono">{t(language, 'open-mo-demand')}</span>
+                        <span className="font-mono font-bold text-red-500">{(committedDemandByMaterial[mat.id] ?? 0).toLocaleString()} {mat.unit}</span>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/20 border border-border/40">
+                        <span className="block text-muted-foreground uppercase font-mono">{t(language, 'projected-stock')}</span>
+                        <span className={`font-mono font-bold ${projection.isBelowThreshold ? "text-red-500" : "text-foreground"}`}>{projection.projectedBalance.toLocaleString()} {mat.unit}</span>
+                      </div>
+                    </div>
+
+                    {mat.note && (
+                      <p className="text-xs text-muted-foreground border-l-2 border-border pl-3">{mat.note}</p>
+                    )}
 
                   </div>
                 )
@@ -209,7 +249,7 @@ export default function InventoryPage() {
             className="flex flex-col border border-border/50 rounded-2xl bg-card overflow-hidden h-full shadow-sm"
           >
             <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center justify-between">
-              <h3 className="font-display text-foreground font-bold text-lg">Transaction Ledger</h3>
+              <h3 className="font-display text-foreground font-bold text-lg">{t(language, 'transaction-ledger')}</h3>
               <FileText className="w-5 h-5 text-muted-foreground" />
             </div>
 
@@ -217,6 +257,7 @@ export default function InventoryPage() {
               {inventoryLedger.map(entry => {
                 const mat = materials.find(m => m.id === entry.materialId)
                 const isRefill = entry.type === "REFILL"
+                const unitWord = mat?.unit || (language === 'fr' ? 'Unités' : 'Units')
                 
                 return (
                   <div key={entry.id} className="p-4 border-b border-border/30 last:border-0 flex flex-col gap-2 hover:bg-muted/10 transition-colors rounded-lg">
@@ -226,20 +267,20 @@ export default function InventoryPage() {
                         <span className="font-medium text-sm text-foreground">{mat?.name || entry.materialId}</span>
                       </div>
                       <span className={`font-mono text-sm font-bold ${isRefill ? 'text-emerald-500' : 'text-foreground'}`}>
-                        {isRefill ? '+' : '-'}{entry.quantity} {mat?.unit || 'Units'}
+                        {isRefill ? '+' : '-'}{entry.quantity} {unitWord}
                       </span>
                     </div>
                     
                     <div className="flex justify-between items-center text-xs text-muted-foreground">
                       <span className="font-mono">{new Date(entry.timestamp).toLocaleDateString()}</span>
-                      {isRefill && <span className="font-mono">{Math.round(entry.totalValue).toLocaleString()} FCFA total</span>}
+                      {isRefill && <span className="font-mono">{Math.round(entry.totalValue).toLocaleString()} FCFA {language === 'fr' ? 'total' : 'total'}</span>}
                     </div>
                   </div>
                 )
               })}
               {inventoryLedger.length === 0 && (
                 <div className="p-8 text-center text-muted-foreground text-sm">
-                  No recent transactions recorded.
+                  {t(language, 'no-transactions')}
                 </div>
               )}
             </div>
@@ -280,22 +321,28 @@ export default function InventoryPage() {
                   </button>
                 </div>
                 
-                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">Register Vendor Batch</h2>
+                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">
+                  {language === "fr" ? "Enregistrer le lot fournisseur" : "Register Vendor Batch"}
+                </h2>
                 <p className="text-muted-foreground text-sm mb-8">
-                  Log inbound raw materials. The moving average pricing engine will automatically recalculate.
+                  {language === "fr" 
+                    ? "Enregistrez les matières premières entrantes. Le moteur de tarification moyenne moyenne mobile recalculera automatiquement."
+                    : "Log inbound raw materials. The moving average pricing engine will automatically recalculate."}
                 </p>
 
                 <form onSubmit={handleRefillSubmit} className="flex flex-col gap-6">
                   {/* Material Selection */}
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Select Material</label>
+                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">
+                      {language === "fr" ? "Sélectionner la matière" : "Select Material"}
+                    </label>
                     <select 
                       value={selectedMaterialId}
                       onChange={(e) => setSelectedMaterialId(e.target.value)}
                       className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground appearance-none"
                       required
                     >
-                      <option value="" disabled>-- Select a material --</option>
+                      <option value="" disabled>-- {language === "fr" ? "Sélectionner une matière" : "Select a material"} --</option>
                       {materials.filter(mat => mat.balanceVolume < mat.maxValue * 0.9).map(mat => (
                         <option key={mat.id} value={mat.id}>{mat.name} ({mat.sku})</option>
                       ))}
@@ -304,7 +351,9 @@ export default function InventoryPage() {
 
                   {/* Quantity */}
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Batch Quantity</label>
+                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">
+                      {language === "fr" ? "Quantité du lot" : "Batch Quantity"}
+                    </label>
                     <div className="relative">
                       <input 
                         type="number" 
@@ -316,28 +365,32 @@ export default function InventoryPage() {
                         className="w-full pl-4 pr-12 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground font-mono"
                         required
                       />
-                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Units</span>
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                        {language === "fr" ? "Unités" : "Units"}
+                      </span>
                     </div>
                   </div>
 
                   {/* Pricing Engine Input */}
                   <div className="flex flex-col gap-2 p-4 bg-muted/30 border border-border/50 rounded-xl">
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Cost Assessment Mode</label>
+                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">
+                        {language === "fr" ? "Mode d'évaluation des coûts" : "Cost Assessment Mode"}
+                      </label>
                       <div className="flex bg-background border border-border rounded-lg p-1">
                         <button 
                           type="button"
                           onClick={() => setCostMode("total")}
                           className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${costMode === 'total' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
                         >
-                          Total Invoice
+                          {language === "fr" ? "Facture totale" : "Total Invoice"}
                         </button>
                         <button 
                           type="button"
                           onClick={() => setCostMode("per_unit")}
                           className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${costMode === 'per_unit' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
                         >
-                          Per Unit
+                          {language === "fr" ? "Par unité" : "Per Unit"}
                         </button>
                       </div>
                     </div>
@@ -362,7 +415,7 @@ export default function InventoryPage() {
                     disabled={!selectedMaterialId || refillQty <= 0 || costValue <= 0}
                     className="w-full mt-2 py-3.5 bg-emerald-500 text-emerald-950 font-bold rounded-xl hover:bg-emerald-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2 shadow-[0_4px_14px_0_rgba(16,185,129,0.39)]"
                   >
-                    Commit to Ledger
+                    {language === "fr" ? "Valider dans le registre" : "Commit to Ledger"}
                   </button>
                 </form>
               </div>
@@ -403,14 +456,18 @@ export default function InventoryPage() {
                   </button>
                 </div>
                 
-                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">Provision Raw Material</h2>
+                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">{t(language, 'provision-material')}</h2>
                 <p className="text-muted-foreground text-sm mb-6">
-                  Register a brand new raw feedstock material. An ID and SKU will be dynamically computed.
+                  {language === "fr" 
+                    ? "Enregistrez une nouvelle matière première. Un ID et un SKU seront calculés dynamiquement."
+                    : "Register a brand new raw feedstock material. An ID and SKU will be dynamically computed."}
                 </p>
 
                 <form onSubmit={handleProvisionSubmit} className="flex flex-col gap-5">
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Material Name</label>
+                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">
+                      {language === "fr" ? "Nom de la matière" : "Material Name"}
+                    </label>
                     <input 
                       type="text" 
                       value={newMatName}
@@ -423,7 +480,9 @@ export default function InventoryPage() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Threshold Qty</label>
+                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">
+                        {language === "fr" ? "Quantité seuil" : "Threshold Qty"}
+                      </label>
                       <input 
                         type="number" 
                         value={newMatThreshold || ""}
@@ -433,7 +492,9 @@ export default function InventoryPage() {
                       />
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Max Capacity</label>
+                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">
+                        {language === "fr" ? "Capacité maximale" : "Max Capacity"}
+                      </label>
                       <input 
                         type="number" 
                         value={newMatMax || ""}
@@ -446,7 +507,9 @@ export default function InventoryPage() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Unit</label>
+                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">
+                        {language === "fr" ? "Unité" : "Unit"}
+                      </label>
                       <input 
                         type="text" 
                         value={newMatUnit}
@@ -456,7 +519,9 @@ export default function InventoryPage() {
                       />
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Est Cost/Unit (FCFA)</label>
+                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">
+                        {language === "fr" ? "Coût est. / unité (FCFA)" : "Est Cost/Unit (FCFA)"}
+                      </label>
                       <input 
                         type="number" 
                         value={newMatCost || ""}
@@ -467,12 +532,22 @@ export default function InventoryPage() {
                     </div>
                   </div>
 
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">{t(language, 'note')}</label>
+                    <textarea
+                      value={newMatNote}
+                      onChange={(e) => setNewMatNote(e.target.value)}
+                      rows={3}
+                      className="w-full px-4 py-2.5 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground text-sm"
+                    />
+                  </div>
+
                   <button 
                     type="submit"
                     disabled={!newMatName || newMatThreshold <= 0 || newMatMax <= 0}
                     className="w-full mt-2 py-3.5 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2 shadow-[0_4px_14px_0_rgba(16,185,129,0.39)]"
                   >
-                    Provision & Save
+                    {language === "fr" ? "Approvisionner & Enregistrer" : "Provision & Save"}
                   </button>
                 </form>
               </div>

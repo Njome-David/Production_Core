@@ -5,10 +5,13 @@ import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { DesktopTowerIcon, Factory } from "@phosphor-icons/react"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
+import { useLanguage } from "@/providers/LanguageProvider"
+import { t } from "@/lib/i18n"
 
 export default function SelectStationPage() {
   const router = useRouter()
   const { setActiveSession, lines } = useMockData()
+  const { language } = useLanguage()
 
   const handleSelectStation = (stationId: string) => {
     setActiveSession(prev => prev ? { ...prev, active_station: stationId } : null)
@@ -37,8 +40,8 @@ export default function SelectStationPage() {
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-amber-500/10 mb-6">
             <Factory weight="duotone" className="w-7 h-7 text-amber-600" />
           </div>
-          <h1 className="text-3xl font-display font-bold tracking-tight mb-2">Select Work Station</h1>
-          <p className="text-muted-foreground">Select the physical spot you are currently operating.</p>
+          <h1 className="text-3xl font-display font-bold tracking-tight mb-2">{t(language, 'select-workstation')}</h1>
+          <p className="text-muted-foreground">{t(language, 'select-workstation-desc')}</p>
         </motion.div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">

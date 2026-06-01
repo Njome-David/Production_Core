@@ -4,11 +4,15 @@ import React, { useState } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
-import { StorefrontIcon, Briefcase, DeviceTabletSpeakerIcon, ArrowRight, Plus, Building, X, SignOut, SignIn } from "@phosphor-icons/react"
+import { useLanguage } from "@/providers/LanguageProvider"
+import { t, languages, type Language } from "@/lib/i18n"
+import { StorefrontIcon, Briefcase, DeviceTabletSpeakerIcon, ArrowRight, Plus, Building, X, SignOut, SignIn, CaretDown } from "@phosphor-icons/react"
 
 export default function OrgSelectorPage() {
   const router = useRouter()
   const { setActiveSession } = useMockData()
+  const { language, setLanguage } = useLanguage()
+  const [showLanguageMenu, setShowLanguageMenu] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [modalMode, setModalMode] = useState<"create" | "join">("create")
   const [newOrgName, setNewOrgName] = useState("")
@@ -58,13 +62,54 @@ export default function OrgSelectorPage() {
 
   return (
     <div className="min-h-[100dvh] w-full flex flex-col items-center justify-center bg-background p-6 relative">
-      <button 
-        onClick={() => router.push("/login")}
-        className="absolute top-6 right-6 p-2 text-muted-foreground hover:bg-muted hover:text-foreground rounded-full transition-colors flex items-center gap-2"
-      >
-        <span className="text-sm font-medium">Sign Out</span>
-        <SignOut className="w-5 h-5" />
-      </button>
+      {/* Top Header Actions (Language & Sign Out) */}
+      <div className="absolute top-6 right-6 z-50 flex items-center gap-4">
+        {/* Language Selector */}
+        <div className="relative">
+          <motion.button
+            onClick={() => setShowLanguageMenu(!showLanguageMenu)}
+            className="h-10 px-4 bg-background text-foreground border border-border rounded-md text-sm font-medium flex items-center gap-2 hover:bg-muted transition-colors"
+            whileTap={{ scale: 0.97 }}
+          >
+            {languages[language]}
+            <CaretDown weight="bold" className={`w-4 h-4 transition-transform ${showLanguageMenu ? 'rotate-180' : ''}`} />
+          </motion.button>
+
+          {showLanguageMenu && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="absolute top-12 right-0 bg-background border border-border rounded-md shadow-lg overflow-hidden w-48 z-50"
+            >
+              {(Object.keys(languages) as Language[]).map((lang) => (
+                <button
+                  key={lang}
+                  onClick={() => {
+                    setLanguage(lang)
+                    setShowLanguageMenu(false)
+                  }}
+                  className={`w-full px-4 py-3 text-sm text-left transition-colors ${
+                    language === lang
+                      ? 'bg-primary text-primary-foreground font-medium'
+                      : 'text-foreground hover:bg-muted'
+                  }`}
+                >
+                  {languages[lang]}
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </div>
+
+        <button 
+          onClick={() => router.push("/login")}
+          className="p-2 text-muted-foreground hover:bg-muted hover:text-foreground rounded-full transition-colors flex items-center gap-2"
+        >
+          <span className="text-sm font-medium">{t(language, 'sign-out')}</span>
+          <SignOut className="w-5 h-5" />
+        </button>
+      </div>
 
       <motion.div 
         className="w-full max-w-3xl"
@@ -83,8 +128,8 @@ export default function OrgSelectorPage() {
             .fallback-icon-svg { display: none !important; }
             .fallback-icon .fallback-icon-svg { display: flex !important; }
           `}} />
-          <h1 className="text-3xl text-foreground font-display font-bold tracking-tight mb-2">Select Active Environment</h1>
-          <p className="text-muted-foreground">Choose your target organization and operational role.</p>
+          <h1 className="text-3xl text-foreground font-display font-bold tracking-tight mb-2">{t(language, 'select-environment')}</h1>
+          <p className="text-muted-foreground">{t(language, 'choose-org-role')}</p>
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -104,13 +149,13 @@ export default function OrgSelectorPage() {
               </div>
               
               <div className="flex-1">
-                <h3 className="text-xl font-display text-foreground font-bold tracking-tight mb-1">HQ Dashboard</h3>
+                <h3 className="text-xl font-display text-foreground font-bold tracking-tight mb-1">{t(language, 'hq-dashboard')}</h3>
                 <p className="text-sm font-medium text-foreground mb-4">Alpha Feed Co.</p>
               </div>
               
               <div className="w-full flex flex-col gap-2 border-t border-border/50 pt-4 mt-auto">
-                <span className="text-xs text-muted-foreground font-mono">ROLE: PRODUCTION MANAGER</span>
-                <span className="text-xs text-muted-foreground font-mono">ACCESS: FULL</span>
+                <span className="text-xs text-muted-foreground font-mono">{t(language, 'role-manager')}</span>
+                <span className="text-xs text-muted-foreground font-mono">{t(language, 'access-full')}</span>
               </div>
             </button>
           </motion.div>
@@ -131,13 +176,13 @@ export default function OrgSelectorPage() {
               </div>
               
               <div className="flex-1">
-                <h3 className="text-xl font-display text-foreground font-bold tracking-tight mb-1">Shop Floor Kiosk</h3>
+                <h3 className="text-xl font-display text-foreground font-bold tracking-tight mb-1">{t(language, 'shop-floor-kiosk')}</h3>
                 <p className="text-sm font-medium text-foreground mb-4">Beta Milling Partners</p>
               </div>
               
               <div className="w-full flex flex-col gap-2 border-t border-border/50 pt-4 mt-auto">
-                <span className="text-xs text-muted-foreground font-mono">ROLE: LINE OPERATOR</span>
-                <span className="text-xs text-muted-foreground font-mono">ACCESS: EXECUTION ONLY</span>
+                <span className="text-xs text-muted-foreground font-mono">{t(language, 'role-operator')}</span>
+                <span className="text-xs text-muted-foreground font-mono">{t(language, 'access-execution')}</span>
               </div>
             </button>
           </motion.div>
@@ -151,8 +196,8 @@ export default function OrgSelectorPage() {
               <div className="w-12 h-12 rounded-full border border-border flex items-center justify-center mb-4 group-hover:bg-primary group-hover:border-primary transition-colors duration-300">
                 <Plus className="w-6 h-6 text-primary group-hover:text-background transition-colors" />
               </div>
-              <h3 className="text-lg font-display font-bold tracking-tight mb-3 text-foreground">Join or Create New Organization</h3>
-              <p className="text-sm font-medium text-muted-foreground">Provision a new multi-tenant sandbox</p>
+              <h3 className="text-lg font-display font-bold tracking-tight mb-3 text-foreground">{t(language, 'join-create-org')}</h3>
+              <p className="text-sm font-medium text-muted-foreground">{t(language, 'provision-new-org')}</p>
             </button>
           </motion.div>
         </div>
@@ -190,7 +235,7 @@ export default function OrgSelectorPage() {
                   </button>
                 </div>
                 
-                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">New Environment</h2>
+                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">{t(language, 'new-environment')}</h2>
                 
                 <div className="flex bg-muted p-1 rounded-xl mb-6 relative">
                   <div 
@@ -202,28 +247,28 @@ export default function OrgSelectorPage() {
                     onClick={() => setModalMode("create")}
                     className={`flex-1 relative z-10 py-2 text-sm font-medium transition-colors ${modalMode === "create" ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                   >
-                    Create
+                    {t(language, 'create')}
                   </button>
                   <button 
                     type="button"
                     onClick={() => setModalMode("join")}
                     className={`flex-1 relative z-10 py-2 text-sm font-medium transition-colors ${modalMode === "join" ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                   >
-                    Join
+                    {t(language, 'join')}
                   </button>
                 </div>
                 
                 <p className="text-muted-foreground text-sm mb-8">
                   {modalMode === "create" 
-                    ? "Provision a new organizational boundary. You will automatically be assigned as the Production Manager." 
-                    : "Join an existing organization. You will be assigned as a Line Operator."}
+                    ? t(language, 'provision-description')
+                    : t(language, 'join-description')}
                 </p>
 
                 <form onSubmit={handleCreateOrg} className="flex flex-col gap-5">
                   {modalMode === "create" ? (
                     <>
                       <div className="flex flex-col gap-2">
-                        <label htmlFor="orgName" className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Organization Name</label>
+                        <label htmlFor="orgName" className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">{t(language, 'organization-name')}</label>
                         <input 
                           id="orgName"
                           type="text" 
@@ -237,23 +282,23 @@ export default function OrgSelectorPage() {
                       </div>
 
                       <div className="flex flex-col gap-2">
-                        <label htmlFor="orgSector" className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Industry Sector</label>
+                        <label htmlFor="orgSector" className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">{t(language, 'industry-sector')}</label>
                         <select 
                           id="orgSector"
                           value={newOrgSector}
                           onChange={(e) => setNewOrgSector(e.target.value)}
                           className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground appearance-none"
                         >
-                          <option value="manufacturing">General Manufacturing</option>
-                          <option value="feed">Livestock Feed Production</option>
-                          <option value="chemicals">Industrial Chemicals</option>
-                          <option value="textiles">Textile & Garment</option>
+                          <option value="manufacturing">{t(language, 'general-manufacturing')}</option>
+                          <option value="feed">{t(language, 'livestock-feed')}</option>
+                          <option value="chemicals">{t(language, 'industrial-chemicals')}</option>
+                          <option value="textiles">{t(language, 'textile-garment')}</option>
                         </select>
                       </div>
                     </>
                   ) : (
                     <div className="flex flex-col gap-2">
-                      <label htmlFor="joinOrgId" className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Organization Code</label>
+                      <label htmlFor="joinOrgId" className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">{t(language, 'organization-code')}</label>
                       <input 
                         id="joinOrgId"
                         type="text" 
@@ -275,12 +320,12 @@ export default function OrgSelectorPage() {
                     {modalMode === "create" ? (
                       <>
                         <Plus className="w-5 h-5" />
-                        Provision & Enter
+                        {t(language, 'provision-enter')}
                       </>
                     ) : (
                       <>
                         <SignIn className="w-5 h-5" />
-                        Join Environment
+                        {t(language, 'join-environment')}
                       </>
                     )}
                   </button>

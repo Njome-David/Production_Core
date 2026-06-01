@@ -1,12 +1,17 @@
 "use client"
 
-import React, { useEffect } from "react"
+import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
-import { UserSwitchIcon, FactoryIcon } from "@phosphor-icons/react"
+import { useLanguage } from "@/providers/LanguageProvider"
+import { t, languages, type Language } from "@/lib/i18n"
+import { UserSwitchIcon, FactoryIcon, CaretDown } from "@phosphor-icons/react"
+import { motion, AnimatePresence } from "framer-motion"
 
 export function OperatorShell({ children }: { children: React.ReactNode }) {
   const { activeSession, setActiveSession } = useMockData()
+  const { language, setLanguage } = useLanguage()
+  const [showLanguageMenu, setShowLanguageMenu] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -38,8 +43,49 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"></span>
-              Operator Mode
+              {t(language, 'operator-mode')}
             </div>
+
+            {/* Language Dropdown in Header */}
+            <div className="relative">
+              <motion.button
+                onClick={() => setShowLanguageMenu(!showLanguageMenu)}
+                className="h-9 px-3 bg-background text-foreground border border-border/55 rounded-md text-xs font-medium flex items-center gap-1.5 hover:bg-muted transition-colors"
+                whileTap={{ scale: 0.97 }}
+              >
+                {languages[language]}
+                <CaretDown weight="bold" className={`w-3.5 h-3.5 transition-transform ${showLanguageMenu ? 'rotate-180' : ''}`} />
+              </motion.button>
+
+              <AnimatePresence>
+                {showLanguageMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    className="absolute top-11 right-0 bg-background border border-border rounded-md shadow-lg overflow-hidden w-36 z-50"
+                  >
+                    {(Object.keys(languages) as Language[]).map((lang) => (
+                      <button
+                        key={lang}
+                        onClick={() => {
+                          setLanguage(lang)
+                          setShowLanguageMenu(false)
+                        }}
+                        className={`w-full px-3 py-2 text-xs text-left transition-colors ${
+                          language === lang
+                            ? 'bg-primary text-primary-foreground font-medium'
+                            : 'text-foreground hover:bg-muted'
+                        }`}
+                      >
+                        {languages[lang]}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
             <button 
               onClick={() => {
                 router.push("/org-selector")
@@ -47,7 +93,7 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
               className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-2 rounded-md hover:bg-muted"
             >
               <UserSwitchIcon className="w-4 h-4" />
-              Switch
+              {t(language, 'switch')}
             </button>
           </div>
         </div>

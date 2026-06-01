@@ -4,10 +4,13 @@ import React, { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useResilientChronometer } from "@/hooks/useResilientChronometer"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
+import { useLanguage } from "@/providers/LanguageProvider"
+import { t } from "@/lib/i18n"
 import { Play, Pause, Stop, Warning, Drop, CheckCircle, PresentationChart, Trash } from "@phosphor-icons/react"
 
 export default function OperatorTabletPage() {
   const { activeMOs, setMOStatus, materials, updateMO } = useMockData()
+  const { language } = useLanguage()
   
   // QC gate state
   const [showQcModal, setShowQcModal] = useState(false)
@@ -84,8 +87,8 @@ export default function OperatorTabletPage() {
           <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mb-6">
             <PresentationChart className="w-10 h-10 text-muted-foreground opacity-50" />
           </div>
-          <h2 className="text-2xl font-display font-bold mb-2">No Active Orders</h2>
-          <p className="text-muted-foreground">There are currently no manufacturing orders assigned to this station. Await dispatch from the production manager.</p>
+          <h2 className="text-2xl font-display font-bold mb-2">{t(language, 'no-active-orders')}</h2>
+          <p className="text-muted-foreground">{t(language, 'no-orders-desc')}</p>
         </div>
       </div>
     )
@@ -102,14 +105,14 @@ export default function OperatorTabletPage() {
               <div className="flex items-center gap-3 mb-2">
                 <span className="text-xs font-mono px-2.5 py-1 rounded-md bg-muted text-muted-foreground uppercase tracking-widest">{currentMO.id}</span>
                 <span className={`text-xs font-mono px-2.5 py-1 rounded-md uppercase tracking-widest font-bold ${currentMO.status === 'IN_PROGRESS' ? 'bg-amber-500/10 text-amber-600' : 'bg-primary/10 text-primary'}`}>
-                  {currentMO.status}
+                  {currentMO.status === 'PENDING' ? t(language, 'pending') : currentMO.status === 'IN_PROGRESS' ? t(language, 'in-progress') : t(language, 'completed')}
                 </span>
               </div>
               <h1 className="text-2xl md:text-3xl font-display font-bold tracking-tight text-foreground">{currentMO.productName}</h1>
             </div>
 
             <div className="mt-6 md:mt-0 flex flex-col items-end">
-              <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest mb-3">Elapsed Run Time</span>
+              <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest mb-3">{t(language, 'elapsed-time')}</span>
               <div className="font-mono text-2xl md:text-4xl tracking-tighter font-bold text-foreground bg-clip-text">
                 {formattedTime}
               </div>
@@ -123,9 +126,9 @@ export default function OperatorTabletPage() {
               <div className="bg-card border border-border rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-bl-[80px] pointer-events-none"></div>
                 <div>
-                  <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Production Target</span>
+                  <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">{t(language, 'production-target')}</span>
                   <div className="mt-2 font-display text-2xl text-foreground font-bold">
-                    {currentMO.targetQty} <span className="text-lg text-muted-foreground font-normal">Batches</span>
+                    {currentMO.targetQty} <span className="text-lg text-muted-foreground font-normal">{t(language, 'batches')}</span>
                   </div>
                 </div>
                 
@@ -136,7 +139,7 @@ export default function OperatorTabletPage() {
                   return (
                     <div className="mt-6 flex flex-col gap-2">
                       <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground font-medium">Progress (10s/batch duration)</span>
+                        <span className="text-muted-foreground font-medium">{t(language, 'progress')}</span>
                         <span className="font-mono text-foreground font-bold">{progressPercentage}%</span>
                       </div>
                       <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
@@ -152,7 +155,7 @@ export default function OperatorTabletPage() {
 
               {/* Real-time Operator Logs panel (directly under target card) */}
               <div className="bg-card border border-border rounded-2xl p-6 flex flex-col flex-1 gap-4 overflow-hidden">
-                <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Operator Notes</span>
+                <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">{t(language, 'operator-notes')}</span>
                 
                 {/* Scrollable list */}
                 <div className="flex-1 overflow-y-auto max-h-[140px] flex flex-col gap-2 pr-1">
@@ -168,7 +171,7 @@ export default function OperatorTabletPage() {
                 <form onSubmit={handleAddLog} className="flex gap-2">
                   <input 
                     type="text"
-                    placeholder="Enter timestamped log..."
+                    placeholder={t(language, 'enter-log')}
                     value={newLogText}
                     onChange={(e) => setNewLogText(e.target.value)}
                     className="flex-1 px-3 py-2 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs font-medium text-foreground"
@@ -177,7 +180,7 @@ export default function OperatorTabletPage() {
                     type="submit"
                     className="px-4 py-2 bg-primary text-primary-foreground font-bold rounded-xl text-xs hover:bg-primary/90 transition-colors"
                   >
-                    Add
+                    {t(language, 'add')}
                   </button>
                 </form>
               </div>
@@ -192,7 +195,7 @@ export default function OperatorTabletPage() {
                   className="h-20 w-full bg-amber-500 text-amber-950 font-display font-bold text-xl rounded-xl flex items-center justify-center gap-3 shadow-[0_4px_20px_rgba(245,158,11,0.3)] hover:bg-amber-400 transition-colors"
                 >
                   <Play weight="fill" className="w-8 h-8" />
-                  INITIATE RUN
+                  {language === "fr" ? "LANCER L'EXÉCUTION" : "INITIATE RUN"}
                 </motion.button>
               ) : (
                 <motion.button
@@ -201,7 +204,7 @@ export default function OperatorTabletPage() {
                   className="h-20 w-full bg-muted text-foreground font-display font-bold text-xl rounded-xl flex items-center justify-center gap-3 hover:bg-neutral-200 transition-colors"
                 >
                   <Pause weight="fill" className="w-8 h-8" />
-                  PAUSE LINE
+                  {language === "fr" ? "METTRE EN PAUSE" : "PAUSE LINE"}
                 </motion.button>
               )}
 
@@ -212,7 +215,7 @@ export default function OperatorTabletPage() {
                 className={`h-20 w-full font-display font-bold text-xl rounded-xl flex items-center justify-center gap-3 transition-colors ${currentMO.status === "PENDING" ? 'bg-background border border-border text-muted-foreground opacity-50 cursor-not-allowed' : 'bg-emerald-500 text-emerald-950 shadow-[0_4px_20px_rgba(16,185,129,0.3)] hover:bg-emerald-400'}`}
               >
                 <CheckCircle weight="bold" className="w-8 h-8" />
-                COMPLETE ORDER
+                {language === "fr" ? "TERMINER LA COMMANDE" : "COMPLETE ORDER"}
               </motion.button>
             </div>
           </div>
@@ -221,7 +224,7 @@ export default function OperatorTabletPage() {
         {/* Right Column: BOM & Context */}
         <div className="col-span-1 lg:col-span-4 bg-card border border-border rounded-2xl flex flex-col overflow-hidden">
           <div className="p-6 border-b border-border/50 bg-muted/20">
-            <h3 className="font-display text-foreground font-bold text-xl">Active Feedstock (BOM)</h3>
+            <h3 className="font-display text-foreground font-bold text-xl">{t(language, 'active-feedstock')}</h3>
           </div>
           <div className="flex-1 overflow-y-auto p-2">
             {currentMO.bom?.lines.map((item, idx) => {
@@ -245,13 +248,13 @@ export default function OperatorTabletPage() {
                       }}
                       className="px-3 py-1.5 text-xs text-red-500 font-medium border border-red-500/20 rounded bg-red-500/5 hover:bg-red-500/10 transition-colors"
                     >
-                      Log Scrap
+                      {t(language, 'log-scrap')}
                     </button>
                     <button 
                       onClick={() => setShowRefillModal(true)}
                       className="px-3 py-1.5 text-xs text-muted-foreground font-medium border border-border rounded bg-background hover:bg-muted transition-colors"
                     >
-                      Manual Refill
+                      {t(language, 'manual-refill')}
                     </button>
                   </div>
                 </div>
@@ -270,11 +273,11 @@ export default function OperatorTabletPage() {
               className="w-full py-3 bg-primary/10 text-primary font-bold rounded-xl border border-primary/20 hover:bg-primary/20 transition-colors flex justify-center items-center gap-2 disabled:opacity-50"
             >
               <CheckCircle weight="bold" className="w-5 h-5" />
-              {currentMO.qcStatus === "DONE" ? "Quality Check Passed" : "Perform Quality Check"}
+              {currentMO.qcStatus === "DONE" ? t(language, 'qc-passed') : t(language, 'perform-qc')}
             </button>
             <div className="flex justify-between items-center text-xs text-muted-foreground px-2">
-              <span>Status: {currentMO.qcStatus === "DONE" ? "QC DONE" : "QC PENDING"}</span>
-              <span className="font-mono text-amber-500">Target: {currentMO.targetQty} Batches</span>
+              <span>{language === 'fr' ? 'Statut' : 'Status'}: {currentMO.qcStatus === "DONE" ? t(language, 'qc-done') : t(language, 'qc-pending')}</span>
+              <span className="font-mono text-amber-500">{t(language, 'target')} {currentMO.targetQty} {t(language, 'batches')}</span>
             </div>
           </div>
         </div>
@@ -311,9 +314,13 @@ export default function OperatorTabletPage() {
                   </div>
                   
                   <div>
-                    <h2 className="text-2xl font-display font-bold tracking-tight mb-2">Manual Material Override</h2>
+                    <h2 className="text-2xl font-display font-bold tracking-tight mb-2">
+                      {language === "fr" ? "Contournement manuel des matières" : "Manual Material Override"}
+                    </h2>
                     <p className="text-muted-foreground text-sm leading-relaxed">
-                      You are about to manually inject material into the active line. This bypasses automated batch constraints.
+                      {language === "fr"
+                        ? "Vous êtes sur le point d'injecter manuellement de la matière dans la ligne active. Cela contourne les contraintes de lots automatisées."
+                        : "You are about to manually inject material into the active line. This bypasses automated batch constraints."}
                     </p>
                   </div>
 
@@ -323,13 +330,13 @@ export default function OperatorTabletPage() {
                       onClick={() => setShowRefillModal(false)}
                       className="w-full py-3 bg-amber-500 text-amber-950 font-bold rounded-xl shadow-[0_4px_14px_0_rgba(245,158,11,0.39)] hover:bg-amber-400 transition-colors"
                     >
-                      Acknowledge & Refill
+                      {language === "fr" ? "Confirmer & Remplir" : "Acknowledge & Refill"}
                     </motion.button>
                     <button 
                       onClick={() => setShowRefillModal(false)}
                       className="w-full py-3 text-muted-foreground font-medium hover:text-foreground rounded-xl hover:bg-muted transition-colors"
                     >
-                      Cancel
+                      {t(language, 'cancel')}
                     </button>
                   </div>
                 </div>
@@ -365,15 +372,21 @@ export default function OperatorTabletPage() {
                   </div>
                   
                   <div className="text-center">
-                    <h2 className="text-2xl font-display font-bold tracking-tight mb-2">Record Material Scrap</h2>
+                    <h2 className="text-2xl font-display font-bold tracking-tight mb-2">
+                      {language === "fr" ? "Enregistrer les rebuts de matière" : "Record Material Scrap"}
+                    </h2>
                     <p className="text-muted-foreground text-sm leading-relaxed">
-                      Log wasted or contaminated {materials.find(m => m.id === selectedScrapMaterial)?.name || selectedScrapMaterial}. This will deduct from line-side inventory without adding to completed yield.
+                      {language === "fr"
+                        ? "Enregistrez le rebut ou la contamination de " + (materials.find(m => m.id === selectedScrapMaterial)?.name || selectedScrapMaterial) + ". Cela déduira du stock de ligne sans ajouter au rendement terminé."
+                        : "Log wasted or contaminated " + (materials.find(m => m.id === selectedScrapMaterial)?.name || selectedScrapMaterial) + ". This will deduct from line-side inventory without adding to completed yield."}
                     </p>
                   </div>
 
                   <form onSubmit={handleLogScrap} className="flex flex-col gap-5 mt-2">
                     <div className="flex flex-col gap-2">
-                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Scrap Quantity (Kg)</label>
+                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">
+                        {language === "fr" ? "Quantité de rebuts (Kg)" : "Scrap Quantity (Kg)"}
+                      </label>
                       <input 
                         type="number" 
                         min="0.1" 
@@ -393,14 +406,14 @@ export default function OperatorTabletPage() {
                         disabled={scrapQty <= 0}
                         className="w-full py-3 bg-red-500 text-white font-bold rounded-xl shadow-[0_4px_14px_0_rgba(239,68,68,0.39)] hover:bg-red-600 transition-colors disabled:opacity-50"
                       >
-                        Log Scrap
+                        {t(language, 'log-scrap')}
                       </motion.button>
                       <button 
                         type="button"
                         onClick={() => setShowScrapModal(false)}
                         className="w-full py-3 text-muted-foreground font-medium hover:text-foreground rounded-xl hover:bg-muted transition-colors"
                       >
-                        Cancel
+                        {t(language, 'cancel')}
                       </button>
                     </div>
                   </form>
@@ -433,10 +446,12 @@ export default function OperatorTabletPage() {
               <div className="rounded-3xl bg-card border border-border shadow-[0_20px_40px_rgba(0,0,0,0.1)] p-8 overflow-hidden">
                 <h2 className="text-2xl font-display font-bold tracking-tight mb-2 flex items-center gap-2">
                   <CheckCircle weight="fill" className="text-emerald-500 w-7 h-7" />
-                  Quality Gate: Batch Release Check
+                  {language === "fr" ? "Barrière qualité : Contrôle de libération du lot" : "Quality Gate: Batch Release Check"}
                 </h2>
                 <p className="text-muted-foreground text-sm mb-6">
-                  Please verify that all manufactured batches have successfully completed visual assessment and weight-tolerance compliance tests.
+                  {language === "fr"
+                    ? "Veuillez vérifier que tous les lots fabriqués ont terminé avec succès l'évaluation visuelle et les tests de conformité de tolérance de poids."
+                    : "Please verify that all manufactured batches have successfully completed visual assessment and weight-tolerance compliance tests."}
                 </p>
 
                 <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto pr-2 mb-6">
@@ -446,8 +461,10 @@ export default function OperatorTabletPage() {
                       className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${checked ? 'border-primary bg-primary/5 text-foreground' : 'border-border bg-background hover:bg-muted/50 text-muted-foreground'}`}
                     >
                       <div className="flex flex-col">
-                        <span className="font-mono text-sm font-bold text-foreground">Batch #{(index + 1).toString().padStart(2, '0')}</span>
-                        <span className="text-xs text-muted-foreground">Standard 10s manufacturing run quality verified</span>
+                        <span className="font-mono text-sm font-bold text-foreground">{language === "fr" ? "Lot" : "Batch"} #{(index + 1).toString().padStart(2, '0')}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {language === "fr" ? "Qualité du cycle de fabrication standard de 10s vérifiée" : "Standard 10s manufacturing run quality verified"}
+                        </span>
                       </div>
                       <input 
                         type="checkbox"
@@ -477,13 +494,13 @@ export default function OperatorTabletPage() {
                     }}
                     className="w-full py-3.5 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors flex justify-center items-center gap-2 shadow-[0_4px_14px_0_rgba(16,185,129,0.39)]"
                   >
-                    Submit QC Check & Complete Order
+                    {language === "fr" ? "Soumettre le contrôle qualité & Terminer la commande" : "Submit QC Check & Complete Order"}
                   </button>
                   <button 
                     onClick={() => setShowQcModal(false)}
                     className="w-full py-3 text-muted-foreground font-medium hover:text-foreground rounded-xl hover:bg-muted transition-colors"
                   >
-                    Cancel
+                    {t(language, 'cancel')}
                   </button>
                 </div>
               </div>

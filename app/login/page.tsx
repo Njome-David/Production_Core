@@ -4,12 +4,16 @@ import React, { useState } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
-import { BuildingsIcon, ArrowRight } from "@phosphor-icons/react"
+import { useLanguage } from "@/providers/LanguageProvider"
+import { BuildingsIcon, ArrowRight, CaretDown } from "@phosphor-icons/react"
+import { t, languages, type Language } from "@/lib/i18n"
 
 export default function LoginPage() {
   const router = useRouter()
   const { setActiveSession } = useMockData()
+  const { language, setLanguage } = useLanguage()
   const [isSignUp, setIsSignUp] = useState(false)
+  const [showLanguageMenu, setShowLanguageMenu] = useState(false)
   const [name, setName] = useState("")
   const [company, setCompany] = useState("")
   const [email, setEmail] = useState("david@alpha-feed.com")
@@ -23,6 +27,46 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-[100dvh] w-full flex flex-col md:flex-row bg-background">
+      {/* Language Selector - Top Right */}
+      <div className="absolute top-6 right-6 z-50">
+        <div className="relative">
+          <motion.button
+            onClick={() => setShowLanguageMenu(!showLanguageMenu)}
+            className="h-10 px-4 bg-background text-foreground border border-border rounded-md text-sm font-medium flex items-center gap-2 hover:bg-muted transition-colors"
+            whileTap={{ scale: 0.97 }}
+          >
+            {languages[language]}
+            <CaretDown weight="bold" className={`w-4 h-4 transition-transform ${showLanguageMenu ? 'rotate-180' : ''}`} />
+          </motion.button>
+
+          {showLanguageMenu && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="absolute top-12 right-0 bg-background border border-border rounded-md shadow-lg overflow-hidden w-48 z-50"
+            >
+              {(Object.keys(languages) as Language[]).map((lang) => (
+                <button
+                  key={lang}
+                  onClick={() => {
+                    setLanguage(lang)
+                    setShowLanguageMenu(false)
+                  }}
+                  className={`w-full px-4 py-3 text-sm text-left transition-colors ${
+                    language === lang
+                      ? 'bg-primary text-primary-foreground font-medium'
+                      : 'text-foreground hover:bg-muted'
+                  }`}
+                >
+                  {languages[lang]}
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </div>
+      </div>
+
       {/* Left Asset Pane (50/50 Split) */}
       <div className="hidden md:flex flex-1 relative bg-card overflow-hidden items-end p-12">
         <div className="absolute inset-0 z-0">
@@ -42,10 +86,10 @@ export default function LoginPage() {
             transition={{ ease: [0.32, 0.72, 0, 1] as const, duration: 0.8 }}
           >
             <h1 className="text-4xl md:text-5xl font-display font-bold tracking-tighter text-foreground leading-none mb-4">
-              Precision Output.<br/>Zero Waste.
+              {t(language, 'precision-output')}<br/>{t(language, 'zero-waste')}
             </h1>
             <p className="text-muted-foreground text-base leading-relaxed">
-              Industrial-grade production management for any business type or size. Built for speed, resilient to chaos.
+              {t(language, 'description')}
             </p>
           </motion.div>
         </div>
@@ -77,12 +121,12 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="flex flex-col gap-6">
             <div className="flex flex-col gap-2">
               <h2 className="text-2xl font-display text-foreground font-bold tracking-tight">
-                {isSignUp ? "Create Account" : "Access Gateway"}
+                {isSignUp ? t(language, 'create-account') : t(language, 'access-gateway')}
               </h2>
               <p className="text-muted-foreground text-sm">
                 {isSignUp 
-                  ? "Enter your details to provision a new manufacturing tenant profile." 
-                  : "Enter your credentials to connect to the active facility."}
+                  ? t(language, 'signup-subtitle')
+                  : t(language, 'signin-subtitle')}
               </p>
             </div>
 
@@ -90,25 +134,25 @@ export default function LoginPage() {
               {isSignUp && (
                 <>
                   <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium text-foreground">Full Name</label>
+                    <label className="text-sm font-medium text-foreground">{t(language, 'full-name')}</label>
                     <input 
                       type="text" 
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. David Vance"
+                      placeholder={t(language, 'full-name-placeholder')}
                       className="h-11 px-4 bg-background text-foreground border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow" 
                     />
                   </div>
 
                   <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium text-foreground">Company Name</label>
+                    <label className="text-sm font-medium text-foreground">{t(language, 'company-name')}</label>
                     <input 
                       type="text" 
                       required
                       value={company}
                       onChange={(e) => setCompany(e.target.value)}
-                      placeholder="e.g. Alpha Feed Co."
+                      placeholder={t(language, 'company-placeholder')}
                       className="h-11 px-4 bg-background text-foreground border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow" 
                     />
                   </div>
@@ -116,7 +160,7 @@ export default function LoginPage() {
               )}
 
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-foreground">Email Address</label>
+                <label className="text-sm font-medium text-foreground">{t(language, 'email')}</label>
                 <input 
                   type="email" 
                   required
@@ -127,7 +171,7 @@ export default function LoginPage() {
               </div>
 
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-foreground">Password</label>
+                <label className="text-sm font-medium text-foreground">{t(language, 'password')}</label>
                 <input 
                   type="password" 
                   required
@@ -144,7 +188,7 @@ export default function LoginPage() {
                 type="submit"
                 className="h-11 w-full bg-foreground text-background font-medium rounded-md flex items-center justify-center gap-2 hover:bg-foreground/90 transition-colors"
               >
-                {isSignUp ? "Register tenant profile" : "Sign In"}
+                {isSignUp ? t(language, 'register') : t(language, 'sign-in')}
                 <ArrowRight weight="bold" className="w-4 h-4" />
               </motion.button>
               
@@ -154,7 +198,7 @@ export default function LoginPage() {
                 onClick={() => setIsSignUp(!isSignUp)}
                 className="h-11 w-full bg-background text-foreground border border-border font-medium rounded-md flex items-center justify-center gap-2 hover:bg-muted transition-colors"
               >
-                {isSignUp ? "Already have an account? Sign In" : "Create New Account"}
+                {isSignUp ? t(language, 'already-have-account') : t(language, 'create-new-account')}
               </motion.button>
             </div>
           </form>

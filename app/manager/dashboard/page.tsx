@@ -3,12 +3,16 @@
 import React, { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
-import { Play, Pause, CheckCircle, Clock, PresentationChart, CaretRight, Plus, X, Factory } from "@phosphor-icons/react"
+import { useLanguage } from "@/providers/LanguageProvider"
+import { t } from "@/lib/i18n"
+import { Play, CheckCircle, Clock, PresentationChart, CaretRight, Plus, X, Factory, WarningCircle } from "@phosphor-icons/react"
 import { ManufacturingOrderDrawer } from "@/components/manager/ManufacturingOrderDrawer"
 import { ManufacturingOrder } from "@/lib/mock-db"
+import { calculateProductionCost } from "@/lib/production-calculations"
 
 export default function ManagerDashboard() {
   const { activeMOs, products, lines, boms, materials, machines, addOrder, activeUnit, setActiveUnit } = useMockData()
+  const { language } = useLanguage()
   const [selectedMoId, setSelectedMoId] = useState<string | null>(null)
   
   const [showNewMoModal, setShowNewMoModal] = useState(false)
@@ -19,45 +23,24 @@ export default function ManagerDashboard() {
 
   // Conversion factors relative to batches
   const unitFactor = activeUnit === "batches" ? 1 : activeUnit === "tons" ? 1.5 : 1500;
-  const unitLabel = activeUnit === "batches" ? "Batches" : activeUnit === "tons" ? "Tons" : "kg";
+  const unitLabel = activeUnit === "batches" ? t(language, 'batches') : activeUnit === "tons" ? t(language, 'tons') : t(language, 'kg');
 
   // Target Qty in standard batches database unit
   const targetQtyInBatches = newMoTargetQtyInput / unitFactor;
   
-  // Calculate estimates
-  const estRevenue = React.useMemo(() => {
-    if (!newMoProductId || targetQtyInBatches <= 0) return 0
-    const product = products.find(p => p.id === newMoProductId)
-    return product ? product.price * targetQtyInBatches : 0
-  }, [newMoProductId, targetQtyInBatches, products])
-
-  const estCost = React.useMemo(() => {
-    if (!newMoProductId || !newMoLineId || targetQtyInBatches <= 0) return 0
-    let cost = 5000 // Fixed launching cost
-    
-    // Material Cost
-    const bom = boms.find(b => b.productId === newMoProductId)
-    if (bom) {
-      for (const line of bom.lines) {
-        const mat = materials.find(m => m.id === line.materialId)
-        if (mat) {
-          cost += line.quantityPerUnit * targetQtyInBatches * mat.costAvg
-        }
-      }
-    }
-
-    // Machine Cost
-    const line = lines.find(l => l.id === newMoLineId)
-    if (line) {
-      for (const mId of line.machineIds) {
-        const machine = machines.find(m => m.id === mId)
-        if (machine && machine.operationRate > 0) {
-          cost += (targetQtyInBatches / machine.operationRate) * machine.maintenanceCostPerHour
-        }
-      }
-    }
-    return cost
-  }, [newMoProductId, newMoLineId, targetQtyInBatches, boms, materials, lines, machines])
+  const estimate = React.useMemo(() => {
+    if (!newMoProductId || !newMoLineId || targetQtyInBatches <= 0) return null
+    return calculateProductionCost({
+      productId: newMoProductId,
+      lineId: newMoLineId,
+      targetQty: targetQtyInBatches,
+      products,
+      boms,
+      materials,
+      lines,
+      machines,
+    })
+  }, [newMoProductId, newMoLineId, targetQtyInBatches, products, boms, materials, lines, machines])
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -76,7 +59,7 @@ export default function ManagerDashboard() {
 
   const handleCreateMo = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newMoProductId || !newMoLineId || targetQtyInBatches <= 0) return
+    if (!newMoProductId || !newMoLineId || targetQtyInBatches <= 0 || !estimate?.isLaunchReady) return
 
     const newMo: ManufacturingOrder = {
       id: `mo_${Date.now()}`,
@@ -96,6 +79,8 @@ export default function ManagerDashboard() {
     setNewMoScheduledDate("")
   }
 
+  const canDispatch = Boolean(newMoProductId && newMoLineId && targetQtyInBatches > 0 && estimate?.isLaunchReady)
+
   return (
     <div className="w-full flex flex-col gap-8 pb-12">
       {/* Header section: Asymmetric design */}
@@ -107,8 +92,8 @@ export default function ManagerDashboard() {
           className="max-w-xl flex flex-col gap-4"
         >
           <div>
-            <h1 className="text-4xl text-foreground font-display font-bold tracking-tight mb-2">Live Monitor</h1>
-            <p className="text-muted-foreground text-lg">Real-time execution state of all active manufacturing orders(MOs) across the facility.</p>
+            <h1 className="text-4xl text-foreground font-display font-bold tracking-tight mb-2">{t(language, 'live-monitor')}</h1>
+            <p className="text-muted-foreground text-lg">{t(language, 'live-monitor-desc')}</p>
           </div>
           
           <div className="flex gap-4 items-center">
@@ -117,7 +102,7 @@ export default function ManagerDashboard() {
               className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-xl font-bold hover:bg-primary/90 transition-colors w-max shadow-[0_4px_14px_0_rgba(16,185,129,0.39)]"
             >
               <Plus weight="bold" className="w-4 h-4" />
-              Launch Order
+              {t(language, 'launch-order')}
             </button>
 
             {/* Premium Unit Segmented Switcher */}
@@ -134,7 +119,7 @@ export default function ManagerDashboard() {
                   }}
                   className={`px-3 py-1.5 text-xs font-mono font-bold uppercase rounded-lg transition-colors ${activeUnit === unit ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
                 >
-                  {unit}
+                  {t(language, unit)}
                 </button>
               ))}
             </div>
@@ -149,11 +134,11 @@ export default function ManagerDashboard() {
           className="flex gap-4"
         >
           <div className="flex flex-col border border-border bg-card p-4 rounded-xl min-w-[140px]">
-            <span className="text-xs font-mono text-muted-foreground mb-1 tracking-wider">ACTIVE MOs</span>
+            <span className="text-xs font-mono text-muted-foreground mb-1 tracking-wider">{t(language, 'active-mos')}</span>
             <span className="text-3xl font-display font-bold text-foreground">{activeMOs.filter(mo => mo.status !== "COMPLETED").length}</span>
           </div>
           <div className="flex flex-col border border-border bg-card p-4 rounded-xl min-w-[140px]">
-            <span className="text-xs font-mono text-muted-foreground mb-1 uppercase tracking-wider">{unitLabel}/Hr (Avg)</span>
+            <span className="text-xs font-mono text-muted-foreground mb-1 uppercase tracking-wider">{unitLabel}/Hr ({t(language, 'avg')})</span>
             <span className="text-3xl font-display font-bold text-foreground">
               {Math.round(14.2 * unitFactor).toLocaleString()}
             </span>
@@ -169,11 +154,11 @@ export default function ManagerDashboard() {
         className="flex flex-col gap-4"
       >
         <div className="grid grid-cols-12 gap-4 px-4 py-2 text-xs font-mono text-muted-foreground uppercase tracking-wider border-b border-border/50">
-          <div className="col-span-2">Order ID</div>
-          <div className="col-span-4">Product Formulation</div>
+          <div className="col-span-2">{t(language, 'order-id')}</div>
+          <div className="col-span-4">{t(language, 'product-formulation')}</div>
           <div className="col-span-2">{unitLabel}</div>
-          <div className="col-span-2">Status</div>
-          <div className="col-span-2 text-right">Actions</div>
+          <div className="col-span-2">{t(language, 'status')}</div>
+          <div className="col-span-2 text-right">{t(language, 'actions')}</div>
         </div>
 
         {activeMOs.map(mo => (
@@ -212,25 +197,25 @@ export default function ManagerDashboard() {
                   <>
                     <Clock className="text-muted-foreground w-4 h-4" />
                     <div className="flex flex-col">
-                      <span className="text-sm text-muted-foreground">Pending</span>
+                      <span className="text-sm text-muted-foreground">{t(language, 'pending')}</span>
                       {mo.programmedDate && (
                         <span className="text-[10px] text-amber-500 font-mono leading-none mt-0.5">
-                          Waiting for {mo.programmedDate}
+                          {t(language, 'waiting-for')} {mo.programmedDate}
                         </span>
                       )}
                     </div>
                   </>
                 )}
-                {mo.status === "IN_PROGRESS" && <><Play className="text-amber-500 w-4 h-4" weight="fill" /><span className="text-sm text-amber-600 font-medium">In Progress</span></>}
+                {mo.status === "IN_PROGRESS" && <><Play className="text-amber-500 w-4 h-4" weight="fill" /><span className="text-sm text-amber-600 font-medium">{t(language, 'in-progress')}</span></>}
                 {mo.status === "COMPLETED" && (
                   <div className="flex flex-col">
                     <div className="flex items-center gap-1.5">
                       <CheckCircle className="text-emerald-500 w-4 h-4" weight="fill" />
-                      <span className="text-sm text-emerald-600 font-medium">Completed</span>
+                      <span className="text-sm text-emerald-600 font-medium">{t(language, 'completed')}</span>
                     </div>
                     {mo.passedQCBatches !== undefined && (
                       <span className="text-[10px] text-muted-foreground font-mono leading-none mt-0.5">
-                        Passed: {mo.passedQCBatches} / {mo.targetQty} Batches
+                        {t(language, 'passed')} {mo.passedQCBatches} / {mo.targetQty} {t(language, 'batches')}
                       </span>
                     )}
                   </div>
@@ -238,7 +223,7 @@ export default function ManagerDashboard() {
               </div>
               
               <div className="col-span-2 flex items-center justify-end gap-2 text-muted-foreground group-hover:text-primary transition-colors">
-                <span className="text-sm font-medium">View Details</span>
+                <span className="text-sm font-medium">{t(language, 'view-details')}</span>
                 <CaretRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
             </button>
@@ -248,7 +233,7 @@ export default function ManagerDashboard() {
         {activeMOs.length === 0 && (
           <div className="py-12 flex flex-col items-center justify-center text-center border border-dashed border-border rounded-xl">
             <PresentationChart className="w-8 h-8 text-muted-foreground mb-4 opacity-50" />
-            <p className="text-sm text-muted-foreground">No active manufacturing orders found.</p>
+            <p className="text-sm text-muted-foreground">{t(language, 'no-active-orders')}</p>
           </div>
         )}
       </motion.div>
@@ -295,21 +280,21 @@ export default function ManagerDashboard() {
                   </button>
                 </div>
                 
-                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">Program Manufacturing Order</h2>
+                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">{t(language, 'program-mo')}</h2>
                 <p className="text-muted-foreground text-sm mb-8">
-                  Create a new manufacturing order and dispatch it to a production line.
+                  {t(language, 'create-mo-desc')}
                 </p>
 
                 <form onSubmit={handleCreateMo} className="flex flex-col gap-5">
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Product Formulation</label>
+                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">{t(language, 'product-formulation')}</label>
                     <select 
                       value={newMoProductId}
                       onChange={(e) => setNewMoProductId(e.target.value)}
                       className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground appearance-none"
                       required
                     >
-                      <option value="" disabled>-- Select a Product --</option>
+                      <option value="" disabled>-- {language === "fr" ? "Sélectionner un produit" : "Select a Product"} --</option>
                       {products.map(p => (
                         <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
                       ))}
@@ -317,14 +302,14 @@ export default function ManagerDashboard() {
                   </div>
 
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Production Line</label>
+                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">{t(language, 'production-line')}</label>
                     <select 
                       value={newMoLineId}
                       onChange={(e) => setNewMoLineId(e.target.value)}
                       className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground appearance-none"
                       required
                     >
-                      <option value="" disabled>-- Select a Line --</option>
+                      <option value="" disabled>-- {language === "fr" ? "Sélectionner une ligne" : "Select a Line"} --</option>
                       {lines.map(l => (
                         <option key={l.id} value={l.id}>{l.name}</option>
                       ))}
@@ -332,7 +317,7 @@ export default function ManagerDashboard() {
                   </div>
 
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Target Volume ({unitLabel})</label>
+                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">{t(language, 'target-volume')} ({unitLabel})</label>
                     <input 
                       type="number" 
                       min="1"
@@ -345,7 +330,7 @@ export default function ManagerDashboard() {
                   </div>
  
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Scheduled Date (Optional)</label>
+                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">{t(language, 'scheduled-date-optional')}</label>
                     <input 
                       type="date"
                       value={newMoScheduledDate}
@@ -354,26 +339,63 @@ export default function ManagerDashboard() {
                     />
                   </div>
  
-                  {newMoProductId && newMoLineId && targetQtyInBatches > 0 && (
-                    <div className="grid grid-cols-2 gap-4 mt-2">
+                  {estimate && (
+                    <div className="flex flex-col gap-3 mt-2">
+                      {(!estimate.isLaunchReady || estimate.machineBreakdown.some(item => item.alert)) && (
+                        <div className="p-4 rounded-xl border border-red-500/30 bg-red-500/10 text-red-600 flex gap-3">
+                          <WarningCircle className="w-5 h-5 shrink-0" weight="fill" />
+                          <div className="text-xs leading-relaxed">
+                            {estimate.missingPricingDetails.length > 0 && (
+                              <p className="font-mono font-bold">
+                                {language === "fr" ? "Détails de prix manquants : " : "Missing price details: "}
+                                {estimate.missingPricingDetails.join(", ")}
+                              </p>
+                            )}
+                            {estimate.hasShortage && (
+                              <p className="font-mono font-bold">
+                                {language === "fr" ? "Les prévisions de stock ne peuvent pas couvrir cette commande." : "Stock forecast cannot cover this order."}
+                              </p>
+                            )}
+                            {estimate.machineBreakdown.map(item => item.alert).filter(Boolean).map((alert, idx) => (
+                              <p key={idx}>{alert}</p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 gap-4">
                       <div className="p-4 bg-muted/30 rounded-xl border border-border/50 flex flex-col gap-1">
-                        <span className="text-[10px] font-mono text-muted-foreground uppercase leading-none mb-1">Est. Cost (Incl. 5,000 launch fee)</span>
-                        <span className="text-lg font-mono font-bold text-foreground">{Math.round(estCost).toLocaleString()} FCFA</span>
+                        <span className="text-[10px] font-mono text-muted-foreground uppercase leading-none mb-1">{t(language, 'calculated-cost')}</span>
+                        <span className="text-lg font-mono font-bold text-red-500">{Math.round(estimate.totalCost).toLocaleString()} FCFA</span>
                       </div>
                       <div className="p-4 bg-muted/30 rounded-xl border border-border/50 flex flex-col gap-1">
-                        <span className="text-[10px] font-mono text-muted-foreground uppercase leading-none mb-1">Est. Revenue</span>
-                        <span className="text-lg font-mono font-bold text-emerald-500">{Math.round(estRevenue).toLocaleString()} FCFA</span>
+                        <span className="text-[10px] font-mono text-muted-foreground uppercase leading-none mb-1">{t(language, 'target-price')} ({estimate.targetMarginPercent}%)</span>
+                        <span className="text-lg font-mono font-bold text-red-500">{Math.round(estimate.targetSellingPrice).toLocaleString()} FCFA</span>
                       </div>
+                      <div className="col-span-2 p-4 bg-muted/30 rounded-xl border border-border/50 grid grid-cols-3 gap-3 text-xs">
+                        <div>
+                          <span className="block text-muted-foreground uppercase font-mono">{t(language, 'materials')}</span>
+                          <span className="font-mono text-red-500 font-bold">{Math.round(estimate.materialsCost).toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="block text-muted-foreground uppercase font-mono">{t(language, 'machines')}</span>
+                          <span className="font-mono text-red-500 font-bold">{Math.round(estimate.machineCost).toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="block text-muted-foreground uppercase font-mono">{t(language, 'labor')}</span>
+                          <span className="font-mono text-red-500 font-bold">{Math.round(estimate.laborCost).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
                     </div>
                   )}
  
                   <button 
                     type="submit"
-                    disabled={!newMoProductId || !newMoLineId || targetQtyInBatches <= 0}
+                    disabled={!canDispatch}
                     className="w-full mt-4 py-3 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2 shadow-[0_4px_14px_0_rgba(16,185,129,0.39)]"
                   >
                     <Play weight="fill" className="w-5 h-5" />
-                    Dispatch to Floor
+                    {t(language, 'dispatch-to-floor')}
                   </button>
                 </form>
               </div>

@@ -3,9 +3,14 @@
 import React, { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
-import { Gear, Plus, Package, Factory, HardDrives, CaretRight, X, FloppyDisk, Drop, Cube, Trash } from "@phosphor-icons/react"
+import { Plus, Package, Factory, HardDrives, CaretRight, X, FloppyDisk, Cube, Trash, ShieldCheck, Robot, WarningCircle } from "@phosphor-icons/react"
+import { buildMachineAlert } from "@/lib/production-calculations"
+import { BOMLine, Machine, Product, ProductionLine } from "@/lib/mock-db"
 
-type ConfigTab = "products" | "lines" | "machines"
+type ConfigTab = "products" | "lines" | "machines" | "roles"
+type ProductForm = Product & { targetProtein?: number; targetMoisture?: number }
+type LineForm = ProductionLine
+type MachineForm = Machine
 
 export default function SettingsPage() {
   const { 
@@ -29,10 +34,10 @@ export default function SettingsPage() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
   // Local form states
-  const [productForm, setProductForm] = useState<any>(null)
-  const [bomRows, setBomRows] = useState<Array<{ materialId: string, quantityPerUnit: number }>>([])
-  const [lineForm, setLineForm] = useState<any>(null)
-  const [machineForm, setMachineForm] = useState<any>(null)
+  const [productForm, setProductForm] = useState<ProductForm | null>(null)
+  const [bomRows, setBomRows] = useState<Array<{ materialId: string, quantityPerUnit: number, note?: string }>>([])
+  const [lineForm, setLineForm] = useState<LineForm | null>(null)
+  const [machineForm, setMachineForm] = useState<MachineForm | null>(null)
 
   // Sub-modal states
   const [showAddMaterialModal, setShowAddMaterialModal] = useState(false)
@@ -42,40 +47,35 @@ export default function SettingsPage() {
   const [showAssignMachineModal, setShowAssignMachineModal] = useState(false)
   const [newMachineId, setNewMachineId] = useState("")
 
-  // Synchronize state when selection changes
-  React.useEffect(() => {
-    if (!selectedEntityId) return
-
-    if (activeTab === "products") {
-      const isNew = selectedEntityId === "new"
-      const prod = isNew 
-        ? { id: `prod_${Date.now()}`, sku: "SKU-NEW", name: "", price: 12000, unit: "batches", qcRequired: false, targetProtein: 16.5, targetMoisture: 12.0, acceptableWeightVariance: 2.0 }
-        : products.find(p => p.id === selectedEntityId)
+  const loadDrawerState = (tab: ConfigTab, id: string, forceNew = false) => {
+    if (tab === "products") {
+      const prod: ProductForm | undefined = forceNew 
+        ? { id, sku: "SKU-NEW", name: "", price: 0, targetMarginPercent: 25, laborCostPerBatch: 0, fixedLaunchCost: 0, assignedLineIds: [], profileLocked: false, aiEnabled: false, qcRequired: false, qualityControls: [] }
+        : products.find(p => p.id === id)
       
       setProductForm(prod ? { ...prod } : null)
       
-      const bom = isNew ? null : boms.find(b => b.productId === selectedEntityId)
+      const bom = forceNew ? null : boms.find(b => b.productId === id)
       setBomRows(bom ? [...bom.lines] : [])
-    } else if (activeTab === "lines") {
-      const isNew = selectedEntityId === "new"
-      const ln = isNew
-        ? { id: `line_${Date.now()}`, name: "", machineIds: [] }
-        : lines.find(l => l.id === selectedEntityId)
+    } else if (tab === "lines") {
+      const ln: LineForm | undefined = forceNew
+        ? { id, name: "", orgId: "org_alpha_feed", machineIds: [], productIds: [] }
+        : lines.find(l => l.id === id)
       
       setLineForm(ln ? { ...ln } : null)
-    } else if (activeTab === "machines") {
-      const isNew = selectedEntityId === "new"
-      const mac = isNew
-        ? { id: `mac_${Date.now()}`, name: "", type: "MIXER", state: "IDLE", maintenanceCostPerHour: 1500, productionRatePerHour: 20 }
-        : machines.find(m => m.id === selectedEntityId)
+    } else if (tab === "machines") {
+      const mac: MachineForm | undefined = forceNew
+        ? { id, name: "", description: "", type: "MIXER", state: "IDLE", maintenanceCostPerHour: 1500, hourlyCost: 2500, depreciationCostPerHour: 300, netBookValue: 0, availabilityPercent: 95, utilizationPercent: 0, priority: "MEDIUM", scheduleWindow: "08:00-17:00", operationRate: 20, isQualityCheckService: false, trackingMetrics: ["OEE"] }
+        : machines.find(m => m.id === id)
       
       setMachineForm(mac ? { ...mac } : null)
     }
-  }, [selectedEntityId, activeTab, products, boms, lines, machines])
+  }
 
   // Handlers
   const handleEntitySelect = (id: string) => {
     setSelectedEntityId(id)
+    loadDrawerState(activeTab, id)
     setIsDrawerOpen(true)
   }
 
@@ -85,7 +85,10 @@ export default function SettingsPage() {
   }
 
   const handleCreateNew = () => {
+    const prefix = activeTab === "products" ? "prod" : activeTab === "lines" ? "line" : "mac"
+    const generatedId = `${prefix}_${Date.now()}`
     setSelectedEntityId("new")
+    loadDrawerState(activeTab, generatedId, true)
     setIsDrawerOpen(true)
   }
 
@@ -96,6 +99,10 @@ export default function SettingsPage() {
 
   const handleUpdateMaterialRowQty = (idx: number, qty: number) => {
     setBomRows(prev => prev.map((row, i) => i === idx ? { ...row, quantityPerUnit: qty } : row))
+  }
+
+  const handleUpdateMaterialRowNote = (idx: number, note: string) => {
+    setBomRows(prev => prev.map((row, i) => i === idx ? { ...row, note } : row))
   }
 
   const handleAddMaterialRow = () => {
@@ -148,18 +155,18 @@ export default function SettingsPage() {
       addBOM({
         id: `bom_${Date.now()}`,
         productId: productForm.id,
-        lines: bomRows
+        lines: bomRows as BOMLine[]
       })
     } else {
       updateProduct(productForm.id, productForm)
       const existingBom = boms.find(b => b.productId === productForm.id)
       if (existingBom) {
-        updateBOM(existingBom.id, { lines: bomRows })
+        updateBOM(existingBom.id, { lines: bomRows as BOMLine[] })
       } else {
         addBOM({
           id: `bom_${Date.now()}`,
           productId: productForm.id,
-          lines: bomRows
+          lines: bomRows as BOMLine[]
         })
       }
     }
@@ -259,6 +266,27 @@ export default function SettingsPage() {
         </div>
       )
     }
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[
+          { role: "Manager", scope: "Orders, costs, inventory, machines", locked: true },
+          { role: "Operator", scope: "Station execution and QC input", locked: true },
+          { role: "Expert Produit", scope: "Product profiles, BOM, quality controls, AI checks", locked: false },
+        ].map(role => (
+          <div key={role.role} className="p-5 bg-card border border-border/50 rounded-xl flex flex-col gap-3">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <ShieldCheck className="w-5 h-5 text-primary" weight="duotone" />
+            </div>
+            <div>
+              <p className="font-display font-bold text-foreground">{role.role}</p>
+              <p className="text-sm text-muted-foreground mt-1">{role.scope}</p>
+            </div>
+            <span className="text-xs font-mono text-muted-foreground">{role.locked ? "Core role" : "New configurable role"}</span>
+          </div>
+        ))}
+      </div>
+    )
   }
 
   // Render Right Drawer Content
@@ -283,16 +311,16 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Target Price</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">Target Margin</label>
                 <div className="relative">
                   <input 
                     type="number" 
-                    value={productForm.price || 0} 
-                    onChange={(e) => setProductForm({ ...productForm, price: parseFloat(e.target.value) })}
+                    value={productForm.targetMarginPercent || 0} 
+                    onChange={(e) => setProductForm({ ...productForm, targetMarginPercent: parseFloat(e.target.value) })}
                     required 
                     className="w-full pl-3 pr-14 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground" 
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-muted-foreground">FCFA</span>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-muted-foreground">%</span>
                 </div>
               </div>
               <div className="flex flex-col gap-2 col-span-2">
@@ -305,6 +333,39 @@ export default function SettingsPage() {
                   className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground" 
                 />
               </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase">Labor Cost/Batch</label>
+                <input 
+                  type="number" 
+                  value={productForm.laborCostPerBatch || 0} 
+                  onChange={(e) => setProductForm({ ...productForm, laborCostPerBatch: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" 
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase">Launch Cost</label>
+                <input 
+                  type="number" 
+                  value={productForm.fixedLaunchCost || 0} 
+                  onChange={(e) => setProductForm({ ...productForm, fixedLaunchCost: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" 
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="flex flex-col gap-4">
+            <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Lifecycle Governance</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="p-3 rounded-lg border border-border/50 bg-card flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={productForm.profileLocked || false} onChange={(e) => setProductForm({ ...productForm, profileLocked: e.target.checked })} />
+                <span className="text-sm text-foreground">Lock profile</span>
+              </label>
+              <label className="p-3 rounded-lg border border-border/50 bg-card flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={productForm.aiEnabled || false} onChange={(e) => setProductForm({ ...productForm, aiEnabled: e.target.checked })} />
+                <Robot className="w-4 h-4 text-primary" />
+                <span className="text-sm text-foreground">AI checks</span>
+              </label>
             </div>
           </section>
 
@@ -344,13 +405,12 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="flex flex-col gap-2 col-span-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Weight Variance Tolerance (±%)</label>
-                <input 
-                  type="number" 
-                  step="0.1" 
-                  value={productForm.acceptableWeightVariance || 0} 
-                  onChange={(e) => setProductForm({ ...productForm, acceptableWeightVariance: parseFloat(e.target.value) })}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" 
+                <label className="text-xs font-bold text-muted-foreground uppercase">Quality Control Elements</label>
+                <textarea 
+                  rows={4}
+                  value={(productForm.qualityControls || []).join("\n")} 
+                  onChange={(e) => setProductForm({ ...productForm, qualityControls: e.target.value.split("\n").map(item => item.trim()).filter(Boolean) })}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground" 
                 />
               </div>
             </div>
@@ -371,8 +431,10 @@ export default function SettingsPage() {
             
             <div className="border border-border/50 rounded-xl overflow-hidden">
               <div className="grid grid-cols-12 gap-2 bg-muted/30 p-3 text-xs font-medium text-muted-foreground">
-                <div className="col-span-6">Material</div>
-                <div className="col-span-4 text-right">Qty/Unit (Kg)</div>
+                <div className="col-span-4">Material</div>
+                <div className="col-span-2 text-right">Price</div>
+                <div className="col-span-2 text-right">Qty/Unit</div>
+                <div className="col-span-2">Note</div>
                 <div className="col-span-2 text-right">Action</div>
               </div>
               <div className="divide-y divide-border/50">
@@ -380,17 +442,28 @@ export default function SettingsPage() {
                   const mat = materials.find(m => m.id === line.materialId)
                   return (
                     <div key={idx} className="grid grid-cols-12 gap-2 p-3 text-sm items-center bg-card">
-                      <div className="col-span-6 flex items-center gap-2 text-foreground font-medium truncate">
+                      <div className="col-span-4 flex items-center gap-2 text-foreground font-medium truncate">
                         <Cube className="w-4 h-4 text-muted-foreground shrink-0" />
                         {mat?.name || line.materialId}
                       </div>
-                      <div className="col-span-4 text-right">
+                      <div className="col-span-2 text-right font-mono text-red-500">
+                        {Math.round(mat?.costAvg ?? 0).toLocaleString()}
+                      </div>
+                      <div className="col-span-2 text-right">
                         <input 
                           type="number" 
                           value={line.quantityPerUnit} 
                           step="0.01" 
                           onChange={(e) => handleUpdateMaterialRowQty(idx, parseFloat(e.target.value) || 0)}
                           className="w-20 px-2 py-1 bg-background border border-border rounded text-right font-mono text-sm text-foreground" 
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <input 
+                          type="text" 
+                          value={line.note || ""} 
+                          onChange={(e) => handleUpdateMaterialRowNote(idx, e.target.value)}
+                          className="w-full px-2 py-1 bg-background border border-border rounded text-xs text-foreground" 
                         />
                       </div>
                       <div className="col-span-2 text-right">
@@ -520,13 +593,12 @@ export default function SettingsPage() {
                 <label className="text-xs font-bold text-muted-foreground uppercase">State</label>
                 <select 
                   value={machineForm.state || "IDLE"} 
-                  onChange={(e) => setMachineForm({ ...machineForm, state: e.target.value })}
+                  onChange={(e) => setMachineForm({ ...machineForm, state: e.target.value as Machine["state"] })}
                   className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm appearance-none text-foreground"
                 >
                   <option value="IDLE">Idle</option>
                   <option value="RUNNING">Running</option>
                   <option value="MAINTENANCE">Maintenance</option>
-                  <option value="OFFLINE">Offline</option>
                 </select>
               </div>
             </div>
@@ -547,13 +619,73 @@ export default function SettingsPage() {
                 <input 
                   type="number" 
                   step="0.1" 
-                  value={machineForm.productionRatePerHour || 0} 
-                  onChange={(e) => setMachineForm({ ...machineForm, productionRatePerHour: parseFloat(e.target.value) || 0 })}
+                  value={machineForm.operationRate || 0} 
+                  onChange={(e) => setMachineForm({ ...machineForm, operationRate: parseFloat(e.target.value) || 0 })}
                   required 
                   className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" 
                 />
               </div>
             </div>
+          </section>
+
+          <section className="flex flex-col gap-4">
+            <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Cost, Duration & Planning</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase">Usage Cost/Hr</label>
+                <input type="number" value={machineForm.hourlyCost || 0} onChange={(e) => setMachineForm({ ...machineForm, hourlyCost: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase">Depreciation/Hr</label>
+                <input type="number" value={machineForm.depreciationCostPerHour || 0} onChange={(e) => setMachineForm({ ...machineForm, depreciationCostPerHour: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase">Net Book Value</label>
+                <input type="number" value={machineForm.netBookValue || 0} onChange={(e) => setMachineForm({ ...machineForm, netBookValue: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-red-500" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase">Schedule Window</label>
+                <input type="text" value={machineForm.scheduleWindow || ""} onChange={(e) => setMachineForm({ ...machineForm, scheduleWindow: e.target.value })} className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground" />
+              </div>
+            </div>
+          </section>
+
+          <section className="flex flex-col gap-4">
+            <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Metrics & Alerts</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase">Availability (%)</label>
+                <input type="number" min="0" max="100" value={machineForm.availabilityPercent || 0} onChange={(e) => setMachineForm({ ...machineForm, availabilityPercent: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase">Utilization (%)</label>
+                <input type="number" min="0" max="100" value={machineForm.utilizationPercent || 0} onChange={(e) => setMachineForm({ ...machineForm, utilizationPercent: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase">Priority</label>
+                <select value={machineForm.priority || "MEDIUM"} onChange={(e) => setMachineForm({ ...machineForm, priority: e.target.value as Machine["priority"] })} className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm appearance-none text-foreground">
+                  <option value="LOW">Low</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="HIGH">High</option>
+                </select>
+              </div>
+              <label className="p-3 rounded-lg border border-border/50 bg-card flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={machineForm.isQualityCheckService || false} onChange={(e) => setMachineForm({ ...machineForm, isQualityCheckService: e.target.checked })} />
+                <span className="text-sm text-foreground">QC service</span>
+              </label>
+            </div>
+            <textarea
+              rows={3}
+              value={(machineForm.trackingMetrics || []).join("\n")}
+              onChange={(e) => setMachineForm({ ...machineForm, trackingMetrics: e.target.value.split("\n").map(item => item.trim()).filter(Boolean) })}
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground"
+            />
+            {buildMachineAlert(machineForm) && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-600 text-xs flex items-center gap-2">
+                <WarningCircle className="w-4 h-4" weight="fill" />
+                {buildMachineAlert(machineForm)}
+              </div>
+            )}
           </section>
 
           <button type="submit" className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors flex justify-center items-center gap-2 mt-auto">
@@ -584,10 +716,12 @@ export default function SettingsPage() {
               <p className="text-muted-foreground text-lg">System-wide parameters, user roles, and machine routing logic.</p>
             </div>
             
-            <button onClick={handleCreateNew} className="flex items-center gap-2 bg-foreground text-background px-4 py-2.5 rounded-lg font-medium hover:bg-foreground/90 transition-colors whitespace-nowrap self-start md:self-auto">
-              <Plus weight="bold" className="w-4 h-4" />
-              Create New
-            </button>
+            {activeTab !== "roles" && (
+              <button onClick={handleCreateNew} className="flex items-center gap-2 bg-foreground text-background px-4 py-2.5 rounded-lg font-medium hover:bg-foreground/90 transition-colors whitespace-nowrap self-start md:self-auto">
+                <Plus weight="bold" className="w-4 h-4" />
+                Create New
+              </button>
+            )}
           </div>
 
           {/* Navigation Tabs */}
@@ -612,6 +746,13 @@ export default function SettingsPage() {
             >
               <HardDrives className="w-4 h-4" />
               Machine Roster
+            </button>
+            <button 
+              onClick={() => { setActiveTab("roles"); setIsDrawerOpen(false) }}
+              className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'roles' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              <ShieldCheck className="w-4 h-4" />
+              Roles
             </button>
           </div>
 
@@ -781,7 +922,7 @@ export default function SettingsPage() {
                   
                   <h2 className="text-2xl font-display font-bold tracking-tight mb-2">Assign Processing Unit</h2>
                   <p className="text-muted-foreground text-sm mb-8">
-                    Select a workstation to add to the line's machine sequence.
+	                    Select a workstation to add to the line&apos;s machine sequence.
                   </p>
                   
                   <div className="flex flex-col gap-5">
