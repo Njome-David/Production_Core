@@ -83,7 +83,7 @@ export default function InventoryPage() {
     return { icon: <CheckCircle weight="fill" className="text-emerald-500 w-5 h-5" />, label: t(language, 'healthy-stock'), color: "text-emerald-500", bg: "bg-emerald-500/10" }
   }
 
-  const displayedMaterials = showShortfallOnly 
+  const displayedMaterials = showShortfallOnly
     ? materials.filter(m => m.balanceVolume <= m.threshold)
     : materials
 
@@ -102,7 +102,7 @@ export default function InventoryPage() {
   return (
     <div className="w-full flex flex-col gap-8 pb-12 relative min-h-[calc(100dvh-64px)]">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-2">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ ease: [0.32, 0.72, 0, 1] as const, duration: 0.6 }}
@@ -113,7 +113,7 @@ export default function InventoryPage() {
         </motion.div>
 
         <div className="flex gap-2">
-          <motion.button 
+          <motion.button
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             onClick={() => setshowShortfallOnly(!showShortfallOnly)}
@@ -123,7 +123,7 @@ export default function InventoryPage() {
             {t(language, 'low-stock-only')}
           </motion.button>
 
-          <motion.button 
+          <motion.button
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             onClick={() => setShowProvisionModal(true)}
@@ -133,7 +133,7 @@ export default function InventoryPage() {
             {t(language, 'provision-material')}
           </motion.button>
 
-          <motion.button 
+          <motion.button
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             onClick={() => setShowRefillModal(true)}
@@ -146,10 +146,10 @@ export default function InventoryPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
+
         {/* Left Column: Material Balance Ledger */}
         <div className="lg:col-span-2 flex flex-col gap-4">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ ease: [0.32, 0.72, 0, 1] as const, duration: 0.6, delay: 0.1 }}
@@ -158,17 +158,17 @@ export default function InventoryPage() {
             <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center justify-between">
               <h3 className="font-display text-foreground font-bold text-lg">{t(language, 'raw-material')}</h3>
             </div>
-            
+
             <div className="flex flex-col divide-y divide-border/50">
               {displayedMaterials.map(mat => {
                 const status = getStatusIndicator(mat.balanceVolume, mat.threshold, mat.maxValue)
                 const fillPercentage = Math.min(100, Math.max(0, (mat.balanceVolume / mat.maxValue) * 100))
                 const projection = getProjectedStock(mat, committedDemandByMaterial[mat.id] ?? 0)
-                
+
                 return (
                   <div key={mat.id} className="p-6 hover:bg-muted/10 transition-colors flex flex-col gap-4">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      
+
                       {/* Name & SKU */}
                       <div className="flex items-center gap-4 w-full md:w-1/3">
                         <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -197,7 +197,7 @@ export default function InventoryPage() {
                           <span className="text-xs font-mono font-bold">{status.label}</span>
                         </div>
                       </div>
-                      
+
                     </div>
 
                     {/* Progress Bar */}
@@ -206,8 +206,8 @@ export default function InventoryPage() {
                       <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden relative">
                         {/* Threshold Marker */}
                         <div className="absolute top-0 bottom-0 w-0.5 bg-red-500/50 z-10" style={{ left: `${Math.min(100, (mat.threshold / mat.maxValue) * 100)}%` }} />
-                        <div 
-                          className={`h-full transition-all duration-1000 ${fillPercentage < 25 ? 'bg-red-500' : fillPercentage < 50 ? 'bg-amber-500' : fillPercentage >= 90 ? 'bg-sky-500' : 'bg-emerald-500'}`} 
+                        <div
+                          className={`h-full transition-all duration-1000 ${fillPercentage < 25 ? 'bg-red-500' : fillPercentage < 50 ? 'bg-amber-500' : fillPercentage >= 90 ? 'bg-sky-500' : 'bg-emerald-500'}`}
                           style={{ width: `${fillPercentage}%` }}
                         />
                       </div>
@@ -242,7 +242,7 @@ export default function InventoryPage() {
 
         {/* Right Column: Recent Transactions */}
         <div className="lg:col-span-1 flex flex-col gap-4">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ ease: [0.32, 0.72, 0, 1] as const, duration: 0.6, delay: 0.2 }}
@@ -258,7 +258,7 @@ export default function InventoryPage() {
                 const mat = materials.find(m => m.id === entry.materialId)
                 const isRefill = entry.type === "REFILL"
                 const unitWord = mat?.unit || (language === 'fr' ? 'Unités' : 'Units')
-                
+
                 return (
                   <div key={entry.id} className="p-4 border-b border-border/30 last:border-0 flex flex-col gap-2 hover:bg-muted/10 transition-colors rounded-lg">
                     <div className="flex justify-between items-start">
@@ -270,7 +270,7 @@ export default function InventoryPage() {
                         {isRefill ? '+' : '-'}{entry.quantity} {unitWord}
                       </span>
                     </div>
-                    
+
                     <div className="flex justify-between items-center text-xs text-muted-foreground">
                       <span className="font-mono">{new Date(entry.timestamp).toLocaleDateString()}</span>
                       {isRefill && <span className="font-mono">{Math.round(entry.totalValue).toLocaleString()} FCFA {language === 'fr' ? 'total' : 'total'}</span>}
@@ -293,15 +293,15 @@ export default function InventoryPage() {
       <AnimatePresence>
         {showRefillModal && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center pointer-events-none p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-background/80 backdrop-blur-sm pointer-events-auto"
               onClick={() => setShowRefillModal(false)}
             />
-            
-            <motion.div 
+
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -313,19 +313,19 @@ export default function InventoryPage() {
                   <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center">
                     <DownloadSimple className="w-6 h-6 text-emerald-500" weight="bold" />
                   </div>
-                  <button 
+                  <button
                     onClick={() => setShowRefillModal(false)}
                     className="p-2 text-muted-foreground hover:bg-muted hover:text-foreground rounded-full transition-colors"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
-                
+
                 <h2 className="text-2xl font-display font-bold tracking-tight mb-2">
                   {language === "fr" ? "Enregistrer le lot fournisseur" : "Register Vendor Batch"}
                 </h2>
                 <p className="text-muted-foreground text-sm mb-8">
-                  {language === "fr" 
+                  {language === "fr"
                     ? "Enregistrez les matières premières entrantes. Le moteur de tarification moyenne moyenne mobile recalculera automatiquement."
                     : "Log inbound raw materials. The moving average pricing engine will automatically recalculate."}
                 </p>
@@ -336,7 +336,7 @@ export default function InventoryPage() {
                     <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">
                       {language === "fr" ? "Sélectionner la matière" : "Select Material"}
                     </label>
-                    <select 
+                    <select
                       value={selectedMaterialId}
                       onChange={(e) => setSelectedMaterialId(e.target.value)}
                       className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground appearance-none"
@@ -355,9 +355,9 @@ export default function InventoryPage() {
                       {language === "fr" ? "Quantité du lot" : "Batch Quantity"}
                     </label>
                     <div className="relative">
-                      <input 
-                        type="number" 
-                        min="0.1" 
+                      <input
+                        type="number"
+                        min="0.1"
                         step="0.1"
                         value={refillQty || ""}
                         onChange={(e) => setRefillQty(parseFloat(e.target.value))}
@@ -378,14 +378,14 @@ export default function InventoryPage() {
                         {language === "fr" ? "Mode d'évaluation des coûts" : "Cost Assessment Mode"}
                       </label>
                       <div className="flex bg-background border border-border rounded-lg p-1">
-                        <button 
+                        <button
                           type="button"
                           onClick={() => setCostMode("total")}
                           className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${costMode === 'total' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
                         >
                           {language === "fr" ? "Facture totale" : "Total Invoice"}
                         </button>
-                        <button 
+                        <button
                           type="button"
                           onClick={() => setCostMode("per_unit")}
                           className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${costMode === 'per_unit' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
@@ -394,12 +394,12 @@ export default function InventoryPage() {
                         </button>
                       </div>
                     </div>
-                    
+
                     <div className="relative mt-2">
                       <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground font-mono">FCFA</span>
-                      <input 
-                        type="number" 
-                        min="0.01" 
+                      <input
+                        type="number"
+                        min="0.01"
                         step="0.01"
                         value={costValue || ""}
                         onChange={(e) => setCostValue(parseFloat(e.target.value))}
@@ -410,7 +410,7 @@ export default function InventoryPage() {
                     </div>
                   </div>
 
-                  <button 
+                  <button
                     type="submit"
                     disabled={!selectedMaterialId || refillQty <= 0 || costValue <= 0}
                     className="w-full mt-2 py-3.5 bg-emerald-500 text-emerald-950 font-bold rounded-xl hover:bg-emerald-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2 shadow-[0_4px_14px_0_rgba(16,185,129,0.39)]"
@@ -428,15 +428,15 @@ export default function InventoryPage() {
       <AnimatePresence>
         {showProvisionModal && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center pointer-events-none p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-background/80 backdrop-blur-sm pointer-events-auto"
               onClick={() => setShowProvisionModal(false)}
             />
-            
-            <motion.div 
+
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -448,17 +448,17 @@ export default function InventoryPage() {
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
                     <Cube className="w-6 h-6 text-primary" weight="bold" />
                   </div>
-                  <button 
+                  <button
                     onClick={() => setShowProvisionModal(false)}
                     className="p-2 text-muted-foreground hover:bg-muted hover:text-foreground rounded-full transition-colors"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
-                
+
                 <h2 className="text-2xl font-display font-bold tracking-tight mb-2">{t(language, 'provision-material')}</h2>
                 <p className="text-muted-foreground text-sm mb-6">
-                  {language === "fr" 
+                  {language === "fr"
                     ? "Enregistrez une nouvelle matière première. Un ID et un SKU seront calculés dynamiquement."
                     : "Register a brand new raw feedstock material. An ID and SKU will be dynamically computed."}
                 </p>
@@ -468,8 +468,8 @@ export default function InventoryPage() {
                     <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">
                       {language === "fr" ? "Nom de la matière" : "Material Name"}
                     </label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={newMatName}
                       onChange={(e) => setNewMatName(e.target.value)}
                       placeholder="e.g. Yellow Dent Corn"
@@ -483,8 +483,8 @@ export default function InventoryPage() {
                       <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">
                         {language === "fr" ? "Quantité seuil" : "Threshold Qty"}
                       </label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         value={newMatThreshold || ""}
                         onChange={(e) => setNewMatThreshold(parseFloat(e.target.value))}
                         className="w-full px-4 py-2.5 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground text-sm font-mono"
@@ -495,8 +495,8 @@ export default function InventoryPage() {
                       <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">
                         {language === "fr" ? "Capacité maximale" : "Max Capacity"}
                       </label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         value={newMatMax || ""}
                         onChange={(e) => setNewMatMax(parseFloat(e.target.value))}
                         className="w-full px-4 py-2.5 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground text-sm font-mono"
@@ -510,8 +510,8 @@ export default function InventoryPage() {
                       <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">
                         {language === "fr" ? "Unité" : "Unit"}
                       </label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={newMatUnit}
                         onChange={(e) => setNewMatUnit(e.target.value)}
                         className="w-full px-4 py-2.5 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground text-sm"
@@ -522,8 +522,8 @@ export default function InventoryPage() {
                       <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">
                         {language === "fr" ? "Coût est. / unité (FCFA)" : "Est Cost/Unit (FCFA)"}
                       </label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         value={newMatCost || ""}
                         onChange={(e) => setNewMatCost(parseFloat(e.target.value))}
                         className="w-full px-4 py-2.5 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground text-sm font-mono"
@@ -542,12 +542,12 @@ export default function InventoryPage() {
                     />
                   </div>
 
-                  <button 
+                  <button
                     type="submit"
                     disabled={!newMatName || newMatThreshold <= 0 || newMatMax <= 0}
                     className="w-full mt-2 py-3.5 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2 shadow-[0_4px_14px_0_rgba(16,185,129,0.39)]"
                   >
-                    {language === "fr" ? "Approvisionner & Enregistrer" : "Provision & Save"}
+                    {language === "fr" ? "Enregistrer" : "Save"}
                   </button>
                 </form>
               </div>
