@@ -109,9 +109,9 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
               <div className="p-4 rounded-xl border border-border/50 bg-background/50 flex flex-col gap-1">
                 <span className="text-sm text-muted-foreground">Target Volume</span>
                 <span className="text-xl text-foreground font-display font-bold">
-                  {Math.round(mo.targetQty * (activeUnit === "batches" ? 1 : activeUnit === "tons" ? 1.5 : 1500)).toLocaleString()}{" "}
+                  {Math.round(mo.targetQty * (activeUnit === "units" ? 1 : activeUnit === "tons" ? 1.5 : 1500)).toLocaleString()}{" "}
                   <span className="text-base text-muted-foreground font-normal">
-                    {activeUnit === "batches" ? "Batches" : activeUnit === "tons" ? "Tons" : "kg"}
+                    {activeUnit === "units" ? "Units" : activeUnit === "tons" ? "Tons" : "kg"}
                   </span>
                 </span>
               </div>

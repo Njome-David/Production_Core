@@ -3,14 +3,15 @@
 import React, { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
-import { Gear, Plus, Package, Factory, HardDrives, CaretRight, X, FloppyDisk, Drop, Cube, Trash } from "@phosphor-icons/react"
+import { Gear, Plus, Package, Factory, HardDrives, CaretRight, X, FloppyDisk, Drop, Cube, Trash, CaretUp, CaretDown, CheckSquareOffset } from "@phosphor-icons/react"
+import { QCParameter, RoutingStep, QualityGate } from "@/lib/mock-db"
 
-type ConfigTab = "products" | "lines" | "machines"
+type ConfigTab = "products" | "machines" | "quality_gates" | "lines"
+type ProductTab = "profile" | "routing"
 
 export default function SettingsPage() {
   const { 
     products, 
-    lines, 
     machines, 
     boms, 
     materials,
@@ -18,21 +19,30 @@ export default function SettingsPage() {
     addProduct,
     updateBOM,
     addBOM,
-    updateLine,
-    addLine,
     updateMachine,
-    addMachine
+    addMachine,
+    lines,
+    qualityGates,
+    addQualityGate,
+    updateQualityGate
   } = useMockData()
   
   const [activeTab, setActiveTab] = useState<ConfigTab>("products")
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  
+  const [productActiveTab, setProductActiveTab] = useState<ProductTab>("profile")
 
   // Local form states
   const [productForm, setProductForm] = useState<any>(null)
   const [bomRows, setBomRows] = useState<Array<{ materialId: string, quantityPerUnit: number }>>([])
-  const [lineForm, setLineForm] = useState<any>(null)
+  const [bomUnit, setBomUnit] = useState<'kg' | 'pct'>('kg')
+  const [routingRows, setRoutingRows] = useState<RoutingStep[]>([])
+  const [qcRows, setQcRows] = useState<QCParameter[]>([])
+  const [productQualityGateRows, setProductQualityGateRows] = useState<{ sequenceAfter: number, gateId: string }[]>([])
+  
   const [machineForm, setMachineForm] = useState<any>(null)
+  const [qualityGateForm, setQualityGateForm] = useState<any>(null)
 
   // Sub-modal states
   const [showAddMaterialModal, setShowAddMaterialModal] = useState(false)
@@ -40,7 +50,10 @@ export default function SettingsPage() {
   const [newMaterialQty, setNewMaterialQty] = useState(1.5)
 
   const [showAssignMachineModal, setShowAssignMachineModal] = useState(false)
-  const [newMachineId, setNewMachineId] = useState("")
+  const [assignGateSequence, setAssignGateSequence] = useState<number | null>(null)
+  const [newRoutingMachineId, setNewRoutingMachineId] = useState("")
+  const [newRoutingUsage, setNewRoutingUsage] = useState(100)
+  const [newRoutingTime, setNewRoutingTime] = useState(1)
 
   // Synchronize state when selection changes
   React.useEffect(() => {
@@ -49,29 +62,34 @@ export default function SettingsPage() {
     if (activeTab === "products") {
       const isNew = selectedEntityId === "new"
       const prod = isNew 
-        ? { id: `prod_${Date.now()}`, sku: "SKU-NEW", name: "", price: 12000, unit: "batches", qcRequired: false, targetProtein: 16.5, targetMoisture: 12.0, acceptableWeightVariance: 2.0 }
+        ? { id: `prod_${Date.now()}`, sku: "SKU-NEW", name: "", targetMargin: 30, finalMass: 100, assignedLineIds: [], qcParameters: [], routing: [], qualityGates: [] }
         : products.find(p => p.id === selectedEntityId)
       
       setProductForm(prod ? { ...prod } : null)
+      setRoutingRows(prod?.routing ? [...prod.routing] : [])
+      setQcRows(prod?.qcParameters ? [...prod.qcParameters] : [])
+      setProductQualityGateRows(prod?.qualityGates ? [...prod.qualityGates] : [])
       
       const bom = isNew ? null : boms.find(b => b.productId === selectedEntityId)
+      setBomUnit(bom?.unit || 'kg')
       setBomRows(bom ? [...bom.lines] : [])
-    } else if (activeTab === "lines") {
-      const isNew = selectedEntityId === "new"
-      const ln = isNew
-        ? { id: `line_${Date.now()}`, name: "", machineIds: [] }
-        : lines.find(l => l.id === selectedEntityId)
-      
-      setLineForm(ln ? { ...ln } : null)
+      setProductActiveTab("profile")
     } else if (activeTab === "machines") {
       const isNew = selectedEntityId === "new"
       const mac = isNew
-        ? { id: `mac_${Date.now()}`, name: "", type: "MIXER", state: "IDLE", maintenanceCostPerHour: 1500, productionRatePerHour: 20 }
+        ? { id: `mac_${Date.now()}`, name: "", type: "MIXER", state: "IDLE", maintenanceCostPerHour: 1500, opCostPerHour: 50, operationRate: 20, isQualityCheckService: false, powerRating: 10, technicalSpecs: "" }
         : machines.find(m => m.id === selectedEntityId)
       
       setMachineForm(mac ? { ...mac } : null)
+    } else if (activeTab === "quality_gates") {
+      const isNew = selectedEntityId === "new"
+      const gate = isNew
+        ? { id: `gate_${Date.now()}`, name: "", description: "", type: "VISUAL", inspectionType: "", serviceProvider: "" }
+        : qualityGates.find(g => g.id === selectedEntityId)
+      
+      setQualityGateForm(gate ? { ...gate } : null)
     }
-  }, [selectedEntityId, activeTab, products, boms, lines, machines])
+  }, [selectedEntityId, activeTab, products, boms, machines])
 
   // Handlers
   const handleEntitySelect = (id: string) => {
@@ -97,16 +115,9 @@ export default function SettingsPage() {
   const handleUpdateMaterialRowQty = (idx: number, qty: number) => {
     setBomRows(prev => prev.map((row, i) => i === idx ? { ...row, quantityPerUnit: qty } : row))
   }
-
   const handleAddMaterialRow = () => {
     if (!newMaterialId) return
     setBomRows(prev => {
-      const existingIdx = prev.findIndex(r => r.materialId === newMaterialId)
-      if (existingIdx >= 0) {
-        const updated = [...prev]
-        updated[existingIdx].quantityPerUnit += newMaterialQty
-        return updated
-      }
       return [...prev, { materialId: newMaterialId, quantityPerUnit: newMaterialQty }]
     })
     setShowAddMaterialModal(false)
@@ -114,27 +125,77 @@ export default function SettingsPage() {
     setNewMaterialQty(1.5)
   }
 
-  // Machine Routing Handlers
-  const handleRemoveMachineFromLine = (mId: string) => {
-    if (!lineForm) return
-    setLineForm({
-      ...lineForm,
-      machineIds: lineForm.machineIds.filter((id: string) => id !== mId)
-    })
-  }
-
-  const handleAddMachineToLine = () => {
-    if (!newMachineId || !lineForm) return
-    if (lineForm.machineIds.includes(newMachineId)) {
-      setShowAssignMachineModal(false)
-      return
-    }
-    setLineForm({
-      ...lineForm,
-      machineIds: [...lineForm.machineIds, newMachineId]
+  // Routing Handlers
+  const handleAddRouting = () => {
+    if (!newRoutingMachineId) return
+    setRoutingRows(prev => {
+      const nextSeq = prev.length > 0 ? Math.max(...prev.map(r => r.sequence)) + 1 : 1
+      return [...prev, { machineId: newRoutingMachineId, sequence: nextSeq, usagePercentage: newRoutingUsage, timeInHours: newRoutingTime }]
     })
     setShowAssignMachineModal(false)
-    setNewMachineId("")
+    setNewRoutingMachineId("")
+    setNewRoutingUsage(100)
+    setNewRoutingTime(1)
+  }
+
+  const handleRemoveRouting = (idx: number) => {
+    const seqToRemove = routingRows[idx].sequence
+    const newRows = routingRows.filter((_, i) => i !== idx)
+    setRoutingRows(newRows)
+    setProductQualityGateRows(prev => prev.filter(g => g.sequenceAfter !== seqToRemove))
+  }
+
+  const handleRemoveQualityGateFromRouting = (seq: number) => {
+    setProductQualityGateRows(prev => prev.filter(g => g.sequenceAfter !== seq))
+  }
+  
+  const handleMoveRouting = (idx: number, direction: 'up' | 'down') => {
+    if (direction === 'up' && idx > 0) {
+      setRoutingRows(prev => {
+        const newArr = [...prev]
+        const temp = newArr[idx]
+        newArr[idx] = newArr[idx - 1]
+        newArr[idx - 1] = temp
+        // update seq
+        newArr[idx].sequence = idx + 1
+        newArr[idx - 1].sequence = idx
+        return newArr
+      })
+    } else if (direction === 'down' && idx < routingRows.length - 1) {
+      setRoutingRows(prev => {
+        const newArr = [...prev]
+        const temp = newArr[idx]
+        newArr[idx] = newArr[idx + 1]
+        newArr[idx + 1] = temp
+        newArr[idx].sequence = idx + 1
+        newArr[idx + 1].sequence = idx + 2
+        return newArr
+      })
+    }
+  }
+
+  const handleUpdateRoutingUsage = (idx: number, usage: number) => {
+    setRoutingRows(prev => prev.map((row, i) => i === idx ? { ...row, usagePercentage: usage } : row))
+  }
+
+  const handleUpdateRoutingTime = (idx: number, time: number) => {
+    setRoutingRows(prev => prev.map((row, i) => i === idx ? { ...row, timeInHours: time } : row))
+  }
+
+  // QC Handlers
+  const handleAddQC = () => {
+    setQcRows(prev => [
+      ...prev, 
+      { id: `qc_${Date.now()}`, name: "New Parameter", minValue: 0, maxValue: 10, unit: "units", tolerance: 1 }
+    ])
+  }
+  
+  const handleRemoveQC = (idx: number) => {
+    setQcRows(prev => prev.filter((_, i) => i !== idx))
+  }
+  
+  const handleUpdateQC = (idx: number, field: keyof QCParameter, value: any) => {
+    setQcRows(prev => prev.map((row, i) => i === idx ? { ...row, [field]: value } : row))
   }
 
   // Submit/Save Handlers
@@ -142,39 +203,65 @@ export default function SettingsPage() {
     e.preventDefault()
     if (!productForm) return
 
+    // Recalculate cost & price before saving
+    let totalMaterialsCost = 0
+    bomRows.forEach(row => {
+      const mat = materials.find(m => m.id === row.materialId)
+      if (mat) {
+        const qty = bomUnit === 'pct' ? (row.quantityPerUnit / 100) * (productForm.finalMass || 100) : row.quantityPerUnit
+        totalMaterialsCost += qty * mat.costAvg
+      }
+    })
+    
+    if (bomUnit === 'pct') {
+      const sum = bomRows.reduce((acc, row) => acc + row.quantityPerUnit, 0)
+      if (Math.abs(sum - 100) > 0.01) {
+        alert("Percentages must sum to exactly 100%.")
+        return
+      }
+    }
+    
+    let totalOpCost = 0
+    routingRows.forEach(row => {
+      const mac = machines.find(m => m.id === row.machineId)
+      const macOpCost = mac?.opCostPerHour || 0
+      totalOpCost += (row.usagePercentage / 100) * macOpCost * (row.timeInHours || 1)
+    })
+    
+    const costPrice = totalMaterialsCost + totalOpCost
+    const margin = productForm.targetMargin || 30
+    const suggestedPrice = costPrice * (100 + margin) / 100
+
+    const updatedProduct = {
+      ...productForm,
+      price: suggestedPrice,
+      qcParameters: qcRows,
+      routing: routingRows,
+      qualityGates: productQualityGateRows
+    }
+
     const isNew = selectedEntityId === "new"
     if (isNew) {
-      addProduct(productForm)
+      addProduct(updatedProduct)
       addBOM({
         id: `bom_${Date.now()}`,
         productId: productForm.id,
+        unit: bomUnit,
         lines: bomRows
       })
     } else {
-      updateProduct(productForm.id, productForm)
+      updateProduct(productForm.id, updatedProduct)
       const existingBom = boms.find(b => b.productId === productForm.id)
       if (existingBom) {
-        updateBOM(existingBom.id, { lines: bomRows })
+        updateBOM(existingBom.id, { unit: bomUnit, lines: bomRows })
       } else {
         addBOM({
           id: `bom_${Date.now()}`,
           productId: productForm.id,
+          unit: bomUnit,
           lines: bomRows
         })
       }
-    }
-    closeDrawer()
-  }
-
-  const handleSaveLine = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!lineForm) return
-
-    const isNew = selectedEntityId === "new"
-    if (isNew) {
-      addLine(lineForm)
-    } else {
-      updateLine(lineForm.id, lineForm)
     }
     closeDrawer()
   }
@@ -192,6 +279,42 @@ export default function SettingsPage() {
     closeDrawer()
   }
 
+  const handleSaveQualityGate = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!qualityGateForm) return
+
+    const isNew = selectedEntityId === "new"
+    if (isNew) {
+      addQualityGate(qualityGateForm)
+    } else {
+      updateQualityGate(qualityGateForm.id, qualityGateForm)
+    }
+    closeDrawer()
+  }
+
+  // Calculations for display
+  const bomSumKg = bomRows.reduce((acc, row) => acc + row.quantityPerUnit, 0)
+  const computedFinalMass = bomUnit === 'kg' ? bomSumKg : (productForm?.finalMass || 100)
+  const finalMass = computedFinalMass
+  let totalMaterialsCost = 0
+  bomRows.forEach(row => {
+    const mat = materials.find(m => m.id === row.materialId)
+    if (mat) {
+      const qty = bomUnit === 'pct' ? (row.quantityPerUnit / 100) * finalMass : row.quantityPerUnit
+      totalMaterialsCost += qty * mat.costAvg
+    }
+  })
+  let totalOpCost = 0
+  routingRows.forEach(row => {
+    const mac = machines.find(m => m.id === row.machineId)
+    const macOpCost = mac?.opCostPerHour || 0
+    totalOpCost += (row.usagePercentage / 100) * macOpCost * (row.timeInHours || 1)
+  })
+  const currentCostPrice = totalMaterialsCost + totalOpCost
+  const currentMargin = productForm?.targetMargin || 0
+  const currentSuggestedPrice = currentCostPrice * (100 + currentMargin) / 100
+
+
   // Render Left Column Content
   const renderList = () => {
     if (activeTab === "products") {
@@ -206,28 +329,9 @@ export default function SettingsPage() {
               <div>
                 <span className="text-xs font-mono text-muted-foreground uppercase">{prod.sku}</span>
                 <p className="font-display font-bold text-foreground mt-1">{prod.name}</p>
-              </div>
-              <CaretRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
-            </button>
-          ))}
-        </div>
-      )
-    }
-
-    if (activeTab === "lines") {
-      return (
-        <div className="flex flex-col gap-2">
-          {lines.map(line => (
-            <button
-              key={line.id}
-              onClick={() => handleEntitySelect(line.id)}
-              className="flex items-center justify-between p-4 bg-card border border-border/50 hover:border-primary/30 hover:bg-muted/30 rounded-xl transition-all group text-left"
-            >
-              <div>
-                <span className="text-xs font-mono text-muted-foreground uppercase">{line.id}</span>
-                <p className="font-display font-bold text-foreground mt-1">{line.name}</p>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-xs bg-muted px-2 py-0.5 rounded text-muted-foreground">{line.machineIds.length} Machines</span>
+                <div className="flex gap-2 mt-2">
+                  <span className="text-xs bg-muted px-2 py-0.5 rounded text-muted-foreground">{prod.routing?.length || 0} Routing Steps</span>
+                  <span className="text-xs bg-muted px-2 py-0.5 rounded text-muted-foreground">{prod.qcParameters?.length || 0} QC Params</span>
                 </div>
               </div>
               <CaretRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
@@ -259,229 +363,399 @@ export default function SettingsPage() {
         </div>
       )
     }
+
+    if (activeTab === "quality_gates") {
+      return (
+        <div className="flex flex-col gap-2">
+          {qualityGates.map(gate => (
+            <button
+              key={gate.id}
+              onClick={() => handleEntitySelect(gate.id)}
+              className="flex items-center justify-between p-4 bg-card border border-border/50 hover:border-primary/30 hover:bg-muted/30 rounded-xl transition-all group text-left"
+            >
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-mono text-muted-foreground uppercase">{gate.id}</span>
+                </div>
+                <p className="font-display font-bold text-foreground">{gate.name}</p>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-primary mt-1 block">{gate.inspectionType} • {gate.serviceProvider}</span>
+              </div>
+              <CaretRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+            </button>
+          ))}
+        </div>
+      )
+    }
+
+    if (activeTab === "lines") {
+      return (
+        <div className="flex flex-col gap-2">
+          {lines.map(line => (
+            <div
+              key={line.id}
+              className="flex items-center justify-between p-4 bg-card border border-border/50 rounded-xl transition-all"
+            >
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-mono text-muted-foreground uppercase">{line.id}</span>
+                </div>
+                <p className="font-display font-bold text-foreground">{line.name}</p>
+                <div className="flex gap-1 items-center mt-2 overflow-x-auto pb-1 max-w-sm">
+                  {line.machineIds.map((mId, i) => (
+                    <React.Fragment key={i}>
+                      {i > 0 && <CaretRight className="w-3 h-3 text-muted-foreground mx-1 shrink-0"/>}
+                      <span className="text-[10px] font-mono bg-muted text-foreground px-1.5 py-0.5 rounded whitespace-nowrap">{mId}</span>
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )
+    }
   }
 
-  // Render Right Drawer Content
+  // Render Drawer/Modal Content
   const renderDrawerContent = () => {
     if (activeTab === "products" && productForm) {
       const isNew = selectedEntityId === "new"
 
       return (
         <form onSubmit={handleSaveProduct} className="flex flex-col gap-8 h-full">
-          {/* Profile */}
-          <section className="flex flex-col gap-4">
-            <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Product Profile</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">SKU</label>
-                <input 
-                  type="text" 
-                  value={productForm.sku || ""} 
-                  onChange={(e) => setProductForm({ ...productForm, sku: e.target.value })}
-                  required 
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" 
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Target Price</label>
-                <div className="relative">
-                  <input 
-                    type="number" 
-                    value={productForm.price || 0} 
-                    onChange={(e) => setProductForm({ ...productForm, price: parseFloat(e.target.value) })}
-                    required 
-                    className="w-full pl-3 pr-14 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground" 
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-muted-foreground">FCFA</span>
+          
+          <div className="flex items-center gap-2 border-b border-border/50 pb-px mb-4">
+            <button 
+              type="button"
+              onClick={() => setProductActiveTab("profile")}
+              className={`pb-3 px-2 text-sm font-bold border-b-2 transition-colors ${productActiveTab === 'profile' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              Product Profile
+            </button>
+            <button 
+              type="button"
+              onClick={() => setProductActiveTab("routing")}
+              className={`pb-3 px-2 text-sm font-bold border-b-2 transition-colors ${productActiveTab === 'routing' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              Routing Information
+            </button>
+          </div>
+
+          {productActiveTab === "profile" && (
+            <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              {/* Profile Basics */}
+              <section className="flex flex-col gap-4">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-muted-foreground uppercase">SKU</label>
+                    <input 
+                      type="text" 
+                      value={productForm.sku || ""} 
+                      onChange={(e) => setProductForm({ ...productForm, sku: e.target.value })}
+                      required 
+                      className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" 
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-muted-foreground uppercase">Display Name</label>
+                    <input 
+                      type="text" 
+                      value={productForm.name || ""} 
+                      onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                      required 
+                      className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground" 
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-muted-foreground uppercase">Target Margin (%)</label>
+                    <input 
+                      type="number" 
+                      value={productForm.targetMargin || 0} 
+                      onChange={(e) => setProductForm({ ...productForm, targetMargin: parseFloat(e.target.value) })}
+                      required 
+                      className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" 
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="flex flex-col gap-2 col-span-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Display Name</label>
-                <input 
-                  type="text" 
-                  value={productForm.name || ""} 
-                  onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                  required 
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground" 
-                />
-              </div>
-            </div>
-          </section>
+              </section>
 
-          {/* QC Parameters */}
-          <section className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Quality Control Parameters</h3>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  checked={productForm.qcRequired || false} 
-                  onChange={(e) => setProductForm({ ...productForm, qcRequired: e.target.checked })}
-                  className="rounded border-border text-primary focus:ring-primary" 
-                />
-                <span className="text-sm font-medium text-foreground">Require QC</span>
-              </label>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Target Protein (%)</label>
-                <input 
-                  type="number" 
-                  step="0.1" 
-                  value={productForm.targetProtein || 0} 
-                  onChange={(e) => setProductForm({ ...productForm, targetProtein: parseFloat(e.target.value) })}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" 
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Target Moisture (%)</label>
-                <input 
-                  type="number" 
-                  step="0.1" 
-                  value={productForm.targetMoisture || 0} 
-                  onChange={(e) => setProductForm({ ...productForm, targetMoisture: parseFloat(e.target.value) })}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" 
-                />
-              </div>
-              <div className="flex flex-col gap-2 col-span-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Weight Variance Tolerance (±%)</label>
-                <input 
-                  type="number" 
-                  step="0.1" 
-                  value={productForm.acceptableWeightVariance || 0} 
-                  onChange={(e) => setProductForm({ ...productForm, acceptableWeightVariance: parseFloat(e.target.value) })}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" 
-                />
-              </div>
-            </div>
-          </section>
+              {/* Cost Summary Box */}
+              <section className="bg-primary/5 border border-primary/20 rounded-2xl p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-muted-foreground uppercase">Total Materials</span>
+                  <span className="text-xl font-mono font-bold text-foreground">{totalMaterialsCost.toFixed(2)}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-muted-foreground uppercase">Total Operations</span>
+                  <span className="text-xl font-mono font-bold text-foreground">{totalOpCost.toFixed(2)}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-muted-foreground uppercase">Cost Price</span>
+                  <span className="text-xl font-mono font-bold text-foreground">{currentCostPrice.toFixed(2)}</span>
+                </div>
+                <div className="flex flex-col border-l-2 border-primary/20 pl-4">
+                  <span className="text-xs font-bold text-primary uppercase">Suggested Selling Price</span>
+                  <span className="text-2xl font-mono font-bold text-primary">{currentSuggestedPrice.toFixed(2)}</span>
+                </div>
+              </section>
 
-          {/* BOM Architect */}
-          <section className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">BOM Architect</h3>
-              <button 
-                type="button" 
-                onClick={() => setShowAddMaterialModal(true)}
-                className="text-xs text-primary hover:text-primary/80 font-bold transition-colors"
-              >
-                + Add Material
-              </button>
-            </div>
-            
-            <div className="border border-border/50 rounded-xl overflow-hidden">
-              <div className="grid grid-cols-12 gap-2 bg-muted/30 p-3 text-xs font-medium text-muted-foreground">
-                <div className="col-span-6">Material</div>
-                <div className="col-span-4 text-right">Qty/Unit (Kg)</div>
-                <div className="col-span-2 text-right">Action</div>
-              </div>
-              <div className="divide-y divide-border/50">
-                {bomRows.map((line, idx) => {
-                  const mat = materials.find(m => m.id === line.materialId)
-                  return (
-                    <div key={idx} className="grid grid-cols-12 gap-2 p-3 text-sm items-center bg-card">
-                      <div className="col-span-6 flex items-center gap-2 text-foreground font-medium truncate">
-                        <Cube className="w-4 h-4 text-muted-foreground shrink-0" />
-                        {mat?.name || line.materialId}
-                      </div>
-                      <div className="col-span-4 text-right">
-                        <input 
-                          type="number" 
-                          value={line.quantityPerUnit} 
-                          step="0.01" 
-                          onChange={(e) => handleUpdateMaterialRowQty(idx, parseFloat(e.target.value) || 0)}
-                          className="w-20 px-2 py-1 bg-background border border-border rounded text-right font-mono text-sm text-foreground" 
-                        />
-                      </div>
-                      <div className="col-span-2 text-right">
-                        <button 
-                          type="button" 
-                          onClick={() => handleRemoveMaterialRow(idx)}
-                          className="p-1.5 text-muted-foreground hover:text-red-500 rounded-md hover:bg-muted/30 transition-colors"
-                        >
-                          <Trash className="w-4 h-4 inline-block" />
-                        </button>
-                      </div>
+              {/* BOM Architect */}
+              <section className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-display font-bold text-foreground uppercase tracking-wider">Bill of Materials</h3>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 bg-muted/30 border border-border/50 rounded-lg px-3 py-1.5 h-[34px]">
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase whitespace-nowrap">Final Mass (Kg):</label>
+                      <input 
+                        type="number" 
+                        value={bomUnit === 'kg' ? bomSumKg.toFixed(2) : (productForm.finalMass || 100)} 
+                        onChange={(e) => setProductForm({ ...productForm, finalMass: parseFloat(e.target.value) })}
+                        disabled={bomUnit === 'kg'}
+                        required 
+                        className={`w-16 bg-transparent focus:outline-none font-mono text-xs font-bold text-right ${bomUnit === 'kg' ? 'text-muted-foreground cursor-not-allowed' : 'text-foreground'}`}
+                      />
                     </div>
-                  )
-                })}
-                {bomRows.length === 0 && (
-                  <div className="p-6 text-center text-sm text-muted-foreground bg-card">No BOM components.</div>
-                )}
-              </div>
-            </div>
-          </section>
-
-          <button type="submit" className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors flex justify-center items-center gap-2 mt-auto">
-            <FloppyDisk className="w-5 h-5" />
-            {isNew ? "Create Product" : "Save Profile"}
-          </button>
-        </form>
-      )
-    }
-
-    if (activeTab === "lines" && lineForm) {
-      const isNew = selectedEntityId === "new"
-
-      return (
-        <form onSubmit={handleSaveLine} className="flex flex-col gap-8 h-full">
-          <section className="flex flex-col gap-4">
-            <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Line Configuration</h3>
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase">Line Name</label>
-              <input 
-                type="text" 
-                value={lineForm.name || ""} 
-                onChange={(e) => setLineForm({ ...lineForm, name: e.target.value })}
-                required 
-                className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground" 
-              />
-            </div>
-          </section>
-
-          <section className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Machine Routing</h3>
-              <button 
-                type="button" 
-                onClick={() => setShowAssignMachineModal(true)}
-                className="text-xs text-primary hover:text-primary/80 font-bold transition-colors"
-              >
-                + Assign Machine
-              </button>
-            </div>
-            <div className="flex flex-col gap-2">
-              {lineForm.machineIds.map((mId: string) => {
-                const mac = machines.find(m => m.id === mId)
-                return (
-                  <div key={mId} className="p-3 bg-card border border-border/50 rounded-lg flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <HardDrives className="w-5 h-5 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{mac?.name || mId}</p>
-                        <p className="text-xs text-muted-foreground font-mono">{mId}</p>
-                      </div>
+                    <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-1 border border-border/50">
+                      <button type="button" onClick={() => setBomUnit('kg')} className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${bomUnit === 'kg' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Kg Mode</button>
+                      <button type="button" onClick={() => setBomUnit('pct')} className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${bomUnit === 'pct' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Percentage Mode</button>
                     </div>
                     <button 
                       type="button" 
-                      onClick={() => handleRemoveMachineFromLine(mId)}
-                      className="p-1.5 text-muted-foreground hover:text-red-500 rounded-md hover:bg-muted/50 transition-colors"
+                      onClick={() => setShowAddMaterialModal(true)}
+                      className="text-xs text-primary hover:text-primary/80 font-bold transition-colors flex items-center gap-1 whitespace-nowrap"
                     >
-                      <X className="w-4 h-4" />
+                      <Plus weight="bold"/> Add Material
                     </button>
                   </div>
-                )
-              })}
-              {lineForm.machineIds.length === 0 && (
-                <div className="p-6 text-center text-sm text-muted-foreground border border-border/50 border-dashed rounded-lg bg-card">No machines assigned.</div>
-              )}
-            </div>
-          </section>
+                </div>
+                
+                <div className="border border-border/50 rounded-xl overflow-hidden">
+                  <div className="grid grid-cols-12 gap-2 bg-muted/30 p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    <div className="col-span-4">Material Name</div>
+                    <div className="col-span-3 text-right">Quantity</div>
+                    <div className="col-span-2 text-right">Unit Price</div>
+                    <div className="col-span-2 text-right">Cost Price</div>
+                    <div className="col-span-1 text-right"></div>
+                  </div>
+                  <div className="divide-y divide-border/50">
+                    {bomRows.map((line, idx) => {
+                      const mat = materials.find(m => m.id === line.materialId)
+                      const unitPrice = mat?.costAvg || 0
+                      const computedQty = bomUnit === 'pct' ? (line.quantityPerUnit / 100) * finalMass : line.quantityPerUnit
+                      const rowCost = computedQty * unitPrice
 
-          <button type="submit" className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors flex justify-center items-center gap-2 mt-auto">
-            <FloppyDisk className="w-5 h-5" />
-            {isNew ? "Create Line" : "Update Line Routing"}
-          </button>
+                      return (
+                        <div key={idx} className="grid grid-cols-12 gap-2 p-4 text-sm items-center bg-card">
+                          <div className="col-span-4 flex items-center gap-2 text-foreground font-medium truncate">
+                            <Cube className="w-5 h-5 text-muted-foreground shrink-0" weight="duotone" />
+                            {mat?.name || line.materialId}
+                          </div>
+                          <div className="col-span-3 flex items-center justify-end gap-2">
+                            <input 
+                              type="number" 
+                              value={line.quantityPerUnit} 
+                              step="0.01" 
+                              onChange={(e) => handleUpdateMaterialRowQty(idx, parseFloat(e.target.value) || 0)}
+                              className="w-20 px-2 py-1.5 bg-background border border-border rounded text-right font-mono text-sm text-foreground" 
+                            />
+                            <span className="text-xs font-bold text-muted-foreground">{bomUnit === 'pct' ? '%' : 'Kg'}</span>
+                          </div>
+                          <div className="col-span-2 text-right font-mono text-muted-foreground">
+                            {unitPrice.toFixed(2)}
+                          </div>
+                          <div className="col-span-2 text-right font-mono font-bold text-foreground">
+                            {rowCost.toFixed(2)}
+                          </div>
+                          <div className="col-span-1 text-right">
+                            <button 
+                              type="button" 
+                              onClick={() => handleRemoveMaterialRow(idx)}
+                              className="p-1.5 text-muted-foreground hover:text-red-500 rounded-md hover:bg-muted/30 transition-colors"
+                            >
+                              <Trash className="w-4 h-4 inline-block" />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {bomRows.length === 0 && (
+                      <div className="p-8 text-center text-sm text-muted-foreground bg-card">No BOM components.</div>
+                    )}
+                    <div className="grid grid-cols-12 gap-2 p-4 bg-muted/20 border-t border-border/50">
+                      <div className="col-span-9 text-right text-xs font-bold text-muted-foreground uppercase">Total Materials Cost</div>
+                      <div className="col-span-2 text-right font-mono font-bold text-foreground">{totalMaterialsCost.toFixed(2)}</div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {productActiveTab === "routing" && (
+            <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              
+              {/* Machine Routing */}
+              <section className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-display font-bold text-foreground uppercase tracking-wider">Machine Routing Sequence</h3>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowAssignMachineModal(true)}
+                    className="text-xs text-primary hover:text-primary/80 font-bold transition-colors flex items-center gap-1"
+                  >
+                    <Plus weight="bold"/> Add Machine
+                  </button>
+                </div>
+                
+                <div className="border border-border/50 rounded-xl overflow-hidden">
+                  <div className="grid grid-cols-12 gap-2 bg-muted/30 p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    <div className="col-span-1">Seq</div>
+                    <div className="col-span-3">Machine Name</div>
+                    <div className="col-span-2 text-right">Time/Hr</div>
+                    <div className="col-span-2 text-right">% Use</div>
+                    <div className="col-span-2 text-right">Op Cost</div>
+                    <div className="col-span-2 text-right">Actions</div>
+                  </div>
+                  <div className="divide-y divide-border/50">
+                    {routingRows.map((route, idx) => {
+                      const mac = machines.find(m => m.id === route.machineId)
+                      const rowOpCost = (route.usagePercentage / 100) * (mac?.opCostPerHour || 0) * (route.timeInHours || 1)
+                      
+                      const gateObj = productQualityGateRows.find(g => g.sequenceAfter === route.sequence)
+                      const actualGate = gateObj ? qualityGates.find(q => q.id === gateObj.gateId) : null
+
+                      return (
+                        <React.Fragment key={idx}>
+                          <div className="grid grid-cols-12 gap-2 p-4 text-sm items-center bg-card">
+                            <div className="col-span-1 font-mono text-muted-foreground">
+                              #{route.sequence}
+                            </div>
+                            <div className="col-span-3 flex items-center gap-3">
+                              <HardDrives className="w-5 h-5 text-muted-foreground shrink-0" weight="duotone" />
+                              <div>
+                                <p className="font-bold text-foreground">{mac?.name || route.machineId}</p>
+                                <p className="text-xs text-muted-foreground">{mac?.type}</p>
+                              </div>
+                            </div>
+                            <div className="col-span-2 text-right">
+                            <input 
+                              type="number" 
+                              value={route.timeInHours} 
+                              step="0.1" 
+                              onChange={(e) => handleUpdateRoutingTime(idx, parseFloat(e.target.value) || 0)}
+                              className="w-20 px-2 py-1.5 bg-background border border-border rounded text-right font-mono text-sm text-foreground" 
+                            />
+                          </div>
+                          <div className="col-span-2 text-right">
+                            <input 
+                              type="number" 
+                              value={route.usagePercentage} 
+                              step="1" 
+                              min="0"
+                              max="100"
+                              onChange={(e) => handleUpdateRoutingUsage(idx, parseFloat(e.target.value) || 0)}
+                              className="w-20 px-2 py-1.5 bg-background border border-border rounded text-right font-mono text-sm text-foreground" 
+                            />
+                          </div>
+                          <div className="col-span-2 text-right font-mono font-bold text-foreground">
+                            {rowOpCost.toFixed(2)}
+                          </div>
+                          <div className="col-span-2 flex justify-end gap-1">
+                            <button type="button" onClick={() => setAssignGateSequence(route.sequence)} title="Add Quality Gate After" className="p-1.5 text-primary hover:bg-primary/20 rounded-md"><CheckSquareOffset className="w-4 h-4"/></button>
+                            <button type="button" onClick={() => handleMoveRouting(idx, 'up')} disabled={idx === 0} className="p-1.5 text-muted-foreground hover:bg-muted rounded-md disabled:opacity-30"><CaretUp className="w-4 h-4"/></button>
+                            <button type="button" onClick={() => handleMoveRouting(idx, 'down')} disabled={idx === routingRows.length - 1} className="p-1.5 text-muted-foreground hover:bg-muted rounded-md disabled:opacity-30"><CaretDown className="w-4 h-4"/></button>
+                            <button type="button" onClick={() => handleRemoveRouting(idx)} className="p-1.5 text-red-400 hover:bg-red-500/20 rounded-md ml-2"><Trash className="w-4 h-4"/></button>
+                          </div>
+                        </div>
+                        
+                        {actualGate && (
+                          <div className="grid grid-cols-12 gap-2 p-3 text-sm items-center bg-primary/5 border-t border-border/20">
+                            <div className="col-span-1"></div>
+                            <div className="col-span-9 flex items-center gap-3">
+                              <CheckSquareOffset className="w-5 h-5 text-primary shrink-0" weight="duotone" />
+                              <div>
+                                <p className="font-bold text-foreground text-sm flex items-center gap-2">
+                                  {actualGate.name}
+                                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-primary text-primary-foreground">Quality Gate</span>
+                                </p>
+                                <p className="text-xs text-muted-foreground">{actualGate.inspectionType} • {actualGate.serviceProvider}</p>
+                              </div>
+                            </div>
+                            <div className="col-span-2 flex justify-end">
+                              <button type="button" onClick={() => handleRemoveQualityGateFromRouting(route.sequence)} className="p-1 text-red-400 hover:bg-red-500/20 rounded-md"><Trash className="w-4 h-4"/></button>
+                            </div>
+                          </div>
+                        )}
+                      </React.Fragment>
+                    )
+                  })}
+                    {routingRows.length === 0 && (
+                      <div className="p-8 text-center text-sm text-muted-foreground bg-card">No machines in routing sequence.</div>
+                    )}
+                    <div className="grid grid-cols-12 gap-2 p-4 bg-muted/20 border-t border-border/50">
+                      <div className="col-span-6 text-right text-xs font-bold text-muted-foreground uppercase">Total Operation Costs</div>
+                      <div className="col-span-3 text-right font-mono font-bold text-foreground">{totalOpCost.toFixed(2)}</div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* QC Parameters */}
+              <section className="flex flex-col gap-4 mt-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-display font-bold text-foreground uppercase tracking-wider">Quality Control Parameters</h3>
+                  <button 
+                    type="button" 
+                    onClick={handleAddQC}
+                    className="text-xs text-primary hover:text-primary/80 font-bold transition-colors flex items-center gap-1"
+                  >
+                    <Plus weight="bold"/> Add Parameter
+                  </button>
+                </div>
+                
+                <div className="flex flex-col gap-3">
+                  {qcRows.map((qc, idx) => (
+                    <div key={qc.id} className="p-4 border border-border/50 rounded-xl bg-card flex items-start gap-4">
+                      <div className="flex-1 grid grid-cols-2 md:grid-cols-5 gap-3">
+                        <div className="col-span-2 md:col-span-2 flex flex-col gap-1">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Parameter Name</label>
+                          <input type="text" value={qc.name} onChange={e => handleUpdateQC(idx, 'name', e.target.value)} className="w-full px-3 py-1.5 bg-background border border-border rounded text-sm"/>
+                        </div>
+                        <div className="col-span-1 flex flex-col gap-1">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Min</label>
+                          <input type="number" value={qc.minValue} onChange={e => handleUpdateQC(idx, 'minValue', parseFloat(e.target.value)||0)} className="w-full px-3 py-1.5 bg-background border border-border rounded font-mono text-sm"/>
+                        </div>
+                        <div className="col-span-1 flex flex-col gap-1">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Max</label>
+                          <input type="number" value={qc.maxValue} onChange={e => handleUpdateQC(idx, 'maxValue', parseFloat(e.target.value)||0)} className="w-full px-3 py-1.5 bg-background border border-border rounded font-mono text-sm"/>
+                        </div>
+                        <div className="col-span-1 flex flex-col gap-1">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Unit</label>
+                          <input type="text" value={qc.unit} onChange={e => handleUpdateQC(idx, 'unit', e.target.value)} className="w-full px-3 py-1.5 bg-background border border-border rounded text-sm"/>
+                        </div>
+                        <div className="col-span-2 md:col-span-2 flex flex-col gap-1">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Tolerance</label>
+                          <input type="number" step="0.1" value={qc.tolerance} onChange={e => handleUpdateQC(idx, 'tolerance', parseFloat(e.target.value)||0)} className="w-full px-3 py-1.5 bg-background border border-border rounded font-mono text-sm"/>
+                        </div>
+                      </div>
+                      <button type="button" onClick={() => handleRemoveQC(idx)} className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg mt-5"><Trash className="w-5 h-5"/></button>
+                    </div>
+                  ))}
+                  {qcRows.length === 0 && (
+                    <div className="p-6 text-center text-sm text-muted-foreground border border-border/50 border-dashed rounded-xl">No QC parameters defined.</div>
+                  )}
+                </div>
+              </section>
+
+            </div>
+          )}
+
+          <div className="mt-auto pt-6 border-t border-border/50">
+            <button type="submit" className="w-full py-4 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex justify-center items-center gap-2 text-lg">
+              <FloppyDisk className="w-6 h-6" />
+              {isNew ? "Create Product" : "Save Profile & Routing"}
+            </button>
+          </div>
         </form>
       )
     }
@@ -491,37 +765,35 @@ export default function SettingsPage() {
 
       return (
         <form onSubmit={handleSaveMachine} className="flex flex-col gap-8 h-full">
-          <section className="flex flex-col gap-4">
-            <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Machine Configuration</h3>
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase">Machine Name</label>
-              <input 
-                type="text" 
-                value={machineForm.name || ""} 
-                onChange={(e) => setMachineForm({ ...machineForm, name: e.target.value })}
-                required 
-                className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground" 
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Type</label>
-                <select 
-                  value={machineForm.type || "MIXER"} 
-                  onChange={(e) => setMachineForm({ ...machineForm, type: e.target.value })}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm appearance-none text-foreground"
-                >
-                  <option value="MIXER">Mixer</option>
-                  <option value="PELLETIZER">Pelletizer</option>
-                  <option value="PACKAGER">Packager</option>
-                </select>
+          <section className="flex flex-col gap-6">
+
+            <div className="grid grid-cols-2 gap-6">
+              <div className="flex flex-col gap-2 col-span-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase">Machine Name</label>
+                <input 
+                  type="text" 
+                  value={machineForm.name || ""} 
+                  onChange={(e) => setMachineForm({ ...machineForm, name: e.target.value })}
+                  required 
+                  className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground" 
+                />
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">State</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">Type / Category</label>
+                <input 
+                  type="text" 
+                  value={machineForm.type || ""} 
+                  onChange={(e) => setMachineForm({ ...machineForm, type: e.target.value })}
+                  className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground"
+                  placeholder="e.g. MIXER, PACKAGER"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase">Current State</label>
                 <select 
                   value={machineForm.state || "IDLE"} 
                   onChange={(e) => setMachineForm({ ...machineForm, state: e.target.value })}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm appearance-none text-foreground"
+                  className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm appearance-none text-foreground font-bold"
                 >
                   <option value="IDLE">Idle</option>
                   <option value="RUNNING">Running</option>
@@ -529,37 +801,107 @@ export default function SettingsPage() {
                   <option value="OFFLINE">Offline</option>
                 </select>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+              
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-muted-foreground uppercase">Power Rating (kW)</label>
+                    <input 
+                      type="number" 
+                      step="0.1" 
+                      value={machineForm.powerRating || 0} 
+                      onChange={(e) => setMachineForm({ ...machineForm, powerRating: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" 
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2 col-span-2">
+                    <label className="text-xs font-bold text-muted-foreground uppercase">Technical Specifications</label>
+                    <textarea 
+                      value={machineForm.technicalSpecs || ""} 
+                      onChange={(e) => setMachineForm({ ...machineForm, technicalSpecs: e.target.value })}
+                      className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground min-h-[80px]" 
+                      placeholder="e.g. Blade diameter: 400mm, Max speed: 2000 RPM"
+                    />
+                  </div>
+
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Maint. Cost/Hr (FCFA)</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">Base Maint. Cost/Hr</label>
                 <input 
                   type="number" 
                   step="1" 
                   value={machineForm.maintenanceCostPerHour || 0} 
                   onChange={(e) => setMachineForm({ ...machineForm, maintenanceCostPerHour: parseFloat(e.target.value) || 0 })}
                   required 
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" 
+                  className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" 
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Prod. Rate/Hr (Batches)</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">Op Cost / Hr</label>
+                <input 
+                  type="number" 
+                  step="1" 
+                  value={machineForm.opCostPerHour || 0} 
+                  onChange={(e) => setMachineForm({ ...machineForm, opCostPerHour: parseFloat(e.target.value) || 0 })}
+                  required 
+                  className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" 
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase">Max Throughput / Hr</label>
                 <input 
                   type="number" 
                   step="0.1" 
-                  value={machineForm.productionRatePerHour || 0} 
-                  onChange={(e) => setMachineForm({ ...machineForm, productionRatePerHour: parseFloat(e.target.value) || 0 })}
+                  value={machineForm.operationRate || 0} 
+                  onChange={(e) => setMachineForm({ ...machineForm, operationRate: parseFloat(e.target.value) || 0 })}
                   required 
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" 
+                  className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" 
                 />
               </div>
             </div>
           </section>
 
-          <button type="submit" className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors flex justify-center items-center gap-2 mt-auto">
-            <FloppyDisk className="w-5 h-5" />
-            {isNew ? "Create Machine" : "Update Machine"}
-          </button>
+          <div className="mt-auto pt-6 border-t border-border/50">
+            <button type="submit" className="w-full py-4 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex justify-center items-center gap-2 text-lg">
+              <FloppyDisk className="w-6 h-6" />
+              {isNew ? "Register Machine" : "Update Machine Config"}
+            </button>
+          </div>
+        </form>
+      )
+    }
+
+    if (activeTab === "quality_gates" && qualityGateForm) {
+      const isNew = selectedEntityId === "new"
+      return (
+        <form onSubmit={handleSaveQualityGate} className="flex flex-col gap-8 h-full">
+          <section className="flex flex-col gap-6">
+            <div className="grid grid-cols-2 gap-6">
+              <div className="flex flex-col gap-2 col-span-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase">Gate Name</label>
+                <input type="text" value={qualityGateForm.name || ""} onChange={(e) => setQualityGateForm({ ...qualityGateForm, name: e.target.value })} required className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground" />
+              </div>
+              <div className="flex flex-col gap-2 col-span-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase">Description</label>
+                <textarea value={qualityGateForm.description || ""} onChange={(e) => setQualityGateForm({ ...qualityGateForm, description: e.target.value })} className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground min-h-[80px]" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase">Gate Type</label>
+                <input type="text" value={qualityGateForm.type || ""} onChange={(e) => setQualityGateForm({ ...qualityGateForm, type: e.target.value })} className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground" placeholder="e.g. VISUAL, CHEMICAL" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase">Inspection Type</label>
+                <input type="text" value={qualityGateForm.inspectionType || ""} onChange={(e) => setQualityGateForm({ ...qualityGateForm, inspectionType: e.target.value })} className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground" />
+              </div>
+              <div className="flex flex-col gap-2 col-span-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase">Service Provider</label>
+                <input type="text" value={qualityGateForm.serviceProvider || ""} onChange={(e) => setQualityGateForm({ ...qualityGateForm, serviceProvider: e.target.value })} className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground" />
+              </div>
+            </div>
+          </section>
+          <div className="mt-auto pt-6 border-t border-border/50">
+            <button type="submit" className="w-full py-4 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex justify-center items-center gap-2 text-lg">
+              <FloppyDisk className="w-6 h-6" />
+              {isNew ? "Register Gate" : "Update Gate Config"}
+            </button>
+          </div>
         </form>
       )
     }
@@ -570,7 +912,7 @@ export default function SettingsPage() {
   return (
     <div className="w-full h-[calc(100dvh-64px)] flex relative overflow-hidden bg-background">
       
-      {/* Left Column - Entity Lists */}
+      {/* Background/Base View - Entity Lists */}
       <div className="flex-1 flex flex-col p-6 overflow-y-auto">
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
@@ -581,37 +923,46 @@ export default function SettingsPage() {
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
             <div>
               <h1 className="text-4xl font-display text-foreground font-bold tracking-tight mb-2">Config Studio</h1>
-              <p className="text-muted-foreground text-lg">System-wide parameters, user roles, and machine routing logic.</p>
+              <p className="text-muted-foreground text-lg">Manage Product Blueprints and the Factory Machine Roster.</p>
             </div>
             
-            <button onClick={handleCreateNew} className="flex items-center gap-2 bg-foreground text-background px-4 py-2.5 rounded-lg font-medium hover:bg-foreground/90 transition-colors whitespace-nowrap self-start md:self-auto">
-              <Plus weight="bold" className="w-4 h-4" />
-              Create New
-            </button>
+            {activeTab !== "lines" && (
+              <button onClick={handleCreateNew} className="flex items-center gap-2 bg-foreground text-background px-4 py-2.5 rounded-lg font-medium hover:bg-foreground/90 transition-colors whitespace-nowrap self-start md:self-auto shadow-md">
+                <Plus weight="bold" className="w-4 h-4" />
+                Create New
+              </button>
+            )}
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex items-center gap-2 mb-6 border-b border-border/50 pb-px">
+          <div className="flex items-center gap-6 mb-6 border-b border-border/50 pb-px">
             <button 
               onClick={() => { setActiveTab("products"); setIsDrawerOpen(false) }}
               className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'products' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
             >
-              <Package className="w-4 h-4" />
+              <Package className="w-5 h-5" />
               Product Profiles
-            </button>
-            <button 
-              onClick={() => { setActiveTab("lines"); setIsDrawerOpen(false) }}
-              className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'lines' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-            >
-              <Factory className="w-4 h-4" />
-              Production Lines
             </button>
             <button 
               onClick={() => { setActiveTab("machines"); setIsDrawerOpen(false) }}
               className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'machines' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
             >
-              <HardDrives className="w-4 h-4" />
+              <HardDrives className="w-5 h-5" />
               Machine Roster
+            </button>
+            <button 
+              onClick={() => { setActiveTab("quality_gates"); setIsDrawerOpen(false) }}
+              className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'quality_gates' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              <CheckSquareOffset className="w-5 h-5" />
+              Quality Gates
+            </button>
+            <button 
+              onClick={() => { setActiveTab("lines"); setIsDrawerOpen(false) }}
+              className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'lines' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              <Factory className="w-5 h-5" />
+              Production Lines
             </button>
           </div>
 
@@ -622,111 +973,108 @@ export default function SettingsPage() {
         </motion.div>
       </div>
 
-      {/* Right Column - Slide-out Drawer */}
+      {/* Centered Large Modal for Configuration */}
       <AnimatePresence>
         {isDrawerOpen && (
-          <>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 pointer-events-none">
             {/* Full Backdrop */}
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-40 bg-background/60 backdrop-blur-md pointer-events-auto"
+              className="absolute inset-0 bg-background/80 backdrop-blur-sm pointer-events-auto"
               onClick={closeDrawer}
             />
             
-            {/* Drawer Panel */}
+            {/* Modal Panel */}
             <motion.div 
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
               transition={{ type: "spring", stiffness: 350, damping: 30 }}
-              className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-[450px] h-full bg-card border-l border-border shadow-2xl flex flex-col"
+              className="relative w-full max-w-5xl max-h-[90vh] bg-card border border-border shadow-2xl flex flex-col rounded-3xl overflow-hidden pointer-events-auto"
             >
-              {/* Drawer Header */}
-              <div className="flex items-center justify-between p-6 border-b border-border/50 bg-background/50">
-                <h2 className="text-xl font-display font-bold text-foreground">
-                  {activeTab === "products" ? "Edit Product" : activeTab === "lines" ? "Edit Line" : "Edit Machine"}
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-8 py-6 border-b border-border/50 bg-muted/10">
+                <h2 className="text-2xl font-display font-bold text-foreground">
+                  {activeTab === "products" ? "Configure Product Blueprint" : "Configure Machine Unit"}
                 </h2>
                 <button 
                   onClick={closeDrawer}
-                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors bg-background border border-border/50 shadow-sm"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
               
-              {/* Drawer Body */}
-              <div className="flex-1 overflow-y-auto p-6 bg-card">
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto p-8">
                 {renderDrawerContent()}
               </div>
             </motion.div>
-          </>
+          </div>
         )}
       </AnimatePresence>
 
-      {/* Add Material Modal Popup */}
+      {/* Add Material Modal Popup (Nested) */}
       <AnimatePresence>
         {showAddMaterialModal && (
-          <div className="fixed inset-0 z-[200] flex justify-end pointer-events-none">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-background/60 backdrop-blur-md pointer-events-auto"
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto"
               onClick={() => setShowAddMaterialModal(false)}
             />
             
             <motion.div 
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "spring", stiffness: 350, damping: 30 }}
-              className="relative w-full max-w-[450px] h-full bg-card border-l border-border shadow-[0_20px_40px_rgba(0,0,0,0.1)] flex flex-col pointer-events-auto z-50"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className="relative w-full max-w-[450px] bg-card border border-border rounded-2xl shadow-2xl flex flex-col pointer-events-auto z-50 overflow-hidden"
             >
-              <div className="flex-1 overflow-y-auto p-8 flex flex-col h-full justify-between">
-                <div>
-                  <div className="flex justify-between items-start mb-6">
-                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                      <Cube className="w-6 h-6 text-primary" weight="duotone" />
-                    </div>
-                    <button 
-                      onClick={() => setShowAddMaterialModal(false)}
-                      className="p-2 text-muted-foreground hover:bg-muted hover:text-foreground rounded-full transition-colors"
+              <div className="p-8 flex flex-col">
+                <div className="flex justify-between items-start mb-6">
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <Cube className="w-6 h-6 text-primary" weight="duotone" />
+                  </div>
+                  <button 
+                    onClick={() => setShowAddMaterialModal(false)}
+                    className="p-2 text-muted-foreground hover:bg-muted hover:text-foreground rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">Add BOM Material</h2>
+                
+                <div className="flex flex-col gap-5 mt-6">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase">Select Material</label>
+                    <select
+                      value={newMaterialId}
+                      onChange={(e) => setNewMaterialId(e.target.value)}
+                      className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary transition-all text-foreground appearance-none text-sm font-medium"
                     >
-                      <X className="w-5 h-5" />
-                    </button>
+                      <option value="" disabled>-- Choose a Material --</option>
+                      {materials.map(m => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </select>
                   </div>
                   
-                  <h2 className="text-2xl font-display font-bold tracking-tight mb-2">Add Feedstock Material</h2>
-                  <p className="text-muted-foreground text-sm mb-8">
-                    Select a raw component and define its proportion per batch.
-                  </p>
-                  
-                  <div className="flex flex-col gap-5">
-                    <div className="flex flex-col gap-2">
-                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Select Material</label>
-                      <select
-                        value={newMaterialId}
-                        onChange={(e) => setNewMaterialId(e.target.value)}
-                        className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground appearance-none text-sm"
-                      >
-                        <option value="" disabled>-- Choose a Material --</option>
-                        {materials.map(m => (
-                          <option key={m.id} value={m.id}>{m.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    
-                    <div className="flex flex-col gap-2">
-                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Quantity per Batch (Kg)</label>
+                  <div className="flex gap-4">
+                    <div className="flex-1 flex flex-col gap-2">
+                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase">Quantity</label>
                       <input
                         type="number"
                         step="0.01"
-                        min="0.01"
+                        min="0"
                         value={newMaterialQty}
                         onChange={(e) => setNewMaterialQty(parseFloat(e.target.value) || 0)}
-                        className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground text-sm font-mono"
+                        className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary transition-all text-foreground text-sm font-mono"
                       />
                     </div>
                   </div>
@@ -738,7 +1086,7 @@ export default function SettingsPage() {
                   onClick={handleAddMaterialRow}
                   className="w-full mt-8 py-3.5 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 disabled:opacity-50 transition-all text-sm flex justify-center items-center gap-2"
                 >
-                  Add to Formulation
+                  Add to BOM
                 </button>
               </div>
             </motion.div>
@@ -746,68 +1094,160 @@ export default function SettingsPage() {
         )}
       </AnimatePresence>
 
-      {/* Assign Machine Modal Popup */}
+      {/* Assign Machine Modal Popup (Nested) */}
       <AnimatePresence>
         {showAssignMachineModal && (
-          <div className="fixed inset-0 z-[200] flex justify-end pointer-events-none">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-background/60 backdrop-blur-md pointer-events-auto"
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto"
               onClick={() => setShowAssignMachineModal(false)}
             />
             
             <motion.div 
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "spring", stiffness: 350, damping: 30 }}
-              className="relative w-full max-w-[450px] h-full bg-card border-l border-border shadow-[0_20px_40px_rgba(0,0,0,0.1)] flex flex-col pointer-events-auto z-50"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className="relative w-full max-w-[450px] bg-card border border-border rounded-2xl shadow-2xl flex flex-col pointer-events-auto z-50 overflow-hidden"
             >
-              <div className="flex-1 overflow-y-auto p-8 flex flex-col h-full justify-between">
-                <div>
-                  <div className="flex justify-between items-start mb-6">
-                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                      <HardDrives className="w-6 h-6 text-primary" weight="duotone" />
-                    </div>
-                    <button 
-                      onClick={() => setShowAssignMachineModal(false)}
-                      className="p-2 text-muted-foreground hover:bg-muted hover:text-foreground rounded-full transition-colors"
+              <div className="p-8 flex flex-col">
+                <div className="flex justify-between items-start mb-6">
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <HardDrives className="w-6 h-6 text-primary" weight="duotone" />
+                  </div>
+                  <button 
+                    onClick={() => setShowAssignMachineModal(false)}
+                    className="p-2 text-muted-foreground hover:bg-muted hover:text-foreground rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">Add to Routing</h2>
+                
+                <div className="flex flex-col gap-5 mt-6">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase">Select Machine</label>
+                    <select
+                      value={newRoutingMachineId}
+                      onChange={(e) => setNewRoutingMachineId(e.target.value)}
+                      className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary transition-all text-foreground appearance-none text-sm font-medium"
                     >
-                      <X className="w-5 h-5" />
-                    </button>
+                      <option value="" disabled>-- Choose a Machine --</option>
+                      {machines.map(m => (
+                        <option key={m.id} value={m.id}>{m.name} ({m.type})</option>
+                      ))}
+                    </select>
                   </div>
                   
-                  <h2 className="text-2xl font-display font-bold tracking-tight mb-2">Assign Processing Unit</h2>
-                  <p className="text-muted-foreground text-sm mb-8">
-                    Select a workstation to add to the line's machine sequence.
-                  </p>
-                  
-                  <div className="flex flex-col gap-5">
-                    <div className="flex flex-col gap-2">
-                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Select Machine</label>
-                      <select
-                        value={newMachineId}
-                        onChange={(e) => setNewMachineId(e.target.value)}
-                        className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground appearance-none text-sm"
-                      >
-                        <option value="" disabled>-- Choose a Machine --</option>
-                        {machines.map(m => (
-                          <option key={m.id} value={m.id}>{m.name} ({m.type})</option>
-                        ))}
-                      </select>
+                  <div className="flex gap-4">
+                    <div className="flex-1 flex flex-col gap-2">
+                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase">Time (Hours)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value={newRoutingTime}
+                        onChange={(e) => setNewRoutingTime(parseFloat(e.target.value) || 0)}
+                        className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary transition-all text-foreground text-sm font-mono"
+                      />
+                    </div>
+                    <div className="flex-1 flex flex-col gap-2">
+                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase">% Use</label>
+                      <input
+                        type="number"
+                        step="1"
+                        min="0"
+                        max="100"
+                        value={newRoutingUsage}
+                        onChange={(e) => setNewRoutingUsage(parseFloat(e.target.value) || 0)}
+                        className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary transition-all text-foreground text-sm font-mono"
+                      />
                     </div>
                   </div>
                 </div>
 
                 <button
                   type="button"
-                  disabled={!newMachineId}
-                  onClick={handleAddMachineToLine}
+                  disabled={!newRoutingMachineId}
+                  onClick={handleAddRouting}
                   className="w-full mt-8 py-3.5 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 disabled:opacity-50 transition-all text-sm flex justify-center items-center gap-2"
                 >
-                  Assign to Line
+                  Append to Sequence
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Assign Gate Modal */}
+        {assignGateSequence !== null && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto"
+              onClick={() => setAssignGateSequence(null)}
+            />
+            
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className="relative w-full max-w-[450px] bg-card border border-border rounded-2xl shadow-2xl flex flex-col pointer-events-auto z-50 overflow-hidden"
+            >
+              <div className="p-8 flex flex-col">
+                <div className="flex justify-between items-start mb-6">
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <CheckSquareOffset className="w-6 h-6 text-primary" weight="duotone" />
+                  </div>
+                  <button 
+                    onClick={() => setAssignGateSequence(null)}
+                    className="p-2 text-muted-foreground hover:bg-muted hover:text-foreground rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">Assign Quality Gate</h2>
+                <p className="text-muted-foreground text-sm">Add a quality gate inspection after sequence #{assignGateSequence}</p>
+                
+                <div className="flex flex-col gap-5 mt-6">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase">Select Quality Gate</label>
+                    <select
+                      id="qualityGateSelect"
+                      className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary transition-all text-foreground appearance-none text-sm font-medium"
+                      defaultValue=""
+                    >
+                      <option value="" disabled>-- Choose a Gate --</option>
+                      {qualityGates.map(g => (
+                        <option key={g.id} value={g.id}>{g.name} ({g.type})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const select = document.getElementById('qualityGateSelect') as HTMLSelectElement
+                    if (select && select.value) {
+                      setProductQualityGateRows(prev => {
+                        const filtered = prev.filter(p => p.sequenceAfter !== assignGateSequence)
+                        return [...filtered, { sequenceAfter: assignGateSequence, gateId: select.value }]
+                      })
+                      setAssignGateSequence(null)
+                    }
+                  }}
+                  className="w-full mt-8 py-3.5 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-all text-sm flex justify-center items-center gap-2"
+                >
+                  Assign Gate
                 </button>
               </div>
             </motion.div>

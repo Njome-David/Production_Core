@@ -12,13 +12,15 @@ import {
   InventoryLedgerEntry,
   MOStatus,
   MachineState,
+  QualityGate,
   INITIAL_MATERIALS, 
   INITIAL_MACHINES, 
   INITIAL_PRODUCTS, 
   INITIAL_ORDERS,
   INITIAL_BOMS,
   INITIAL_LINES,
-  INITIAL_LEDGER
+  INITIAL_LEDGER,
+  INITIAL_QUALITY_GATES
 } from "@/lib/mock-db"
 
 export interface ActiveManufacturingOrder extends ManufacturingOrder {
@@ -31,8 +33,8 @@ interface MockContextState {
   activeSession: ActiveSession | null
   setActiveSession: React.Dispatch<React.SetStateAction<ActiveSession | null>>
   
-  activeUnit: "batches" | "tons" | "kg"
-  setActiveUnit: React.Dispatch<React.SetStateAction<"batches" | "tons" | "kg">>
+  activeUnit: "units" | "tons" | "kg"
+  setActiveUnit: React.Dispatch<React.SetStateAction<"units" | "tons" | "kg">>
 
   materials: Material[]
   updateMaterialBalance: (id: string, qty: number) => void
@@ -44,6 +46,10 @@ interface MockContextState {
   updateMachineState: (id: string, state: MachineState) => void
   addMachine: (machine: Machine) => void
   updateMachine: (id: string, updates: Partial<Machine>) => void
+  
+  qualityGates: QualityGate[]
+  addQualityGate: (gate: QualityGate) => void
+  updateQualityGate: (id: string, updates: Partial<QualityGate>) => void
   
   products: Product[]
   addProduct: (product: Product) => void
@@ -71,7 +77,7 @@ const MockFeedContext = createContext<MockContextState | undefined>(undefined)
 
 export function MockFeedProductionProvider({ children }: { children: ReactNode }) {
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null)
-  const [activeUnit, setActiveUnit] = useState<"batches" | "tons" | "kg">("batches")
+  const [activeUnit, setActiveUnit] = useState<"units" | "tons" | "kg">("units")
   
   const [materials, setMaterials] = useState<Material[]>(INITIAL_MATERIALS)
   const [inventoryLedger, setInventoryLedger] = useState<InventoryLedgerEntry[]>(INITIAL_LEDGER)
@@ -79,8 +85,21 @@ export function MockFeedProductionProvider({ children }: { children: ReactNode }
   const [machines, setMachines] = useState<Machine[]>(INITIAL_MACHINES)
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS)
   const [boms, setBoms] = useState<BOM[]>(INITIAL_BOMS)
-  const [lines, setLines] = useState<ProductionLine[]>(INITIAL_LINES)
   const [orders, setOrders] = useState<ManufacturingOrder[]>(INITIAL_ORDERS)
+  const [qualityGates, setQualityGates] = useState<QualityGate[]>(INITIAL_QUALITY_GATES)
+
+  const lines = useMemo(() => {
+    return products.map(p => {
+      if (!p.routing || p.routing.length === 0) return null
+      return {
+        id: `line_${p.id}`,
+        name: `${p.name} Line`,
+        orgId: "org_alpha_feed",
+        machineIds: p.routing.map(r => r.machineId),
+        productIds: [p.id]
+      }
+    }).filter(Boolean) as ProductionLine[]
+  }, [products])
 
   const activeMOs = useMemo(() => {
     return orders.map(order => {
@@ -162,12 +181,14 @@ export function MockFeedProductionProvider({ children }: { children: ReactNode }
   const addMaterial = (material: Material) => setMaterials(prev => [...prev, material])
   const addMachine = (machine: Machine) => setMachines(prev => [...prev, machine])
   const updateMachine = (id: string, updates: Partial<Machine>) => setMachines(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m))
+  const addQualityGate = (gate: QualityGate) => setQualityGates(prev => [...prev, gate])
+  const updateQualityGate = (id: string, updates: Partial<QualityGate>) => setQualityGates(prev => prev.map(g => g.id === id ? { ...g, ...updates } : g))
   const addProduct = (product: Product) => setProducts(prev => [...prev, product])
   const updateProduct = (id: string, updates: Partial<Product>) => setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p))
   const addBOM = (bom: BOM) => setBoms(prev => [...prev, bom])
   const updateBOM = (id: string, updates: Partial<BOM>) => setBoms(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b))
-  const addLine = (line: ProductionLine) => setLines(prev => [...prev, line])
-  const updateLine = (id: string, updates: Partial<ProductionLine>) => setLines(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l))
+  const addLine = (line: ProductionLine) => { console.warn("addLine is deprecated as lines are dynamic") }
+  const updateLine = (id: string, updates: Partial<ProductionLine>) => { console.warn("updateLine is deprecated as lines are dynamic") }
 
 
   return (
@@ -185,6 +206,9 @@ export function MockFeedProductionProvider({ children }: { children: ReactNode }
       updateMachineState,
       addMachine,
       updateMachine,
+      qualityGates,
+      addQualityGate,
+      updateQualityGate,
       products,
       addProduct,
       updateProduct,

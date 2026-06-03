@@ -4,14 +4,18 @@ import React, { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useResilientChronometer } from "@/hooks/useResilientChronometer"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
-import { Play, Pause, Stop, Warning, Drop, CheckCircle, PresentationChart, Trash } from "@phosphor-icons/react"
+import { Play, Pause, Stop, Warning, Drop, CheckCircle, PresentationChart, Trash, CaretLeft, CheckSquareOffset } from "@phosphor-icons/react"
+import Link from "next/link"
 
 export default function OperatorTabletPage() {
-  const { activeMOs, setMOStatus, materials, updateMO } = useMockData()
+  const { activeSession, activeMOs, setMOStatus, materials, updateMO, machines, products, qualityGates } = useMockData()
   
   // QC gate state
   const [showQcModal, setShowQcModal] = useState(false)
-  const [qcBatches, setQcBatches] = useState<boolean[]>([])
+  const [qcPassedCount, setQcPassedCount] = useState<number>(0)
+  const isGateStation = activeSession?.station_type === "gate"
+  const activeMachine = isGateStation ? null : machines.find(m => m.id === activeSession?.active_station)
+  const activeGate = isGateStation ? qualityGates.find(g => g.id === activeSession?.active_station) : null
 
   // Operator Logs State
   const [operatorLogs, setOperatorLogs] = useState<{timestamp: string, text: string}[]>([
@@ -28,9 +32,10 @@ export default function OperatorTabletPage() {
     setNewLogText("")
   }
   
-  // Find the first 'In Progress' or 'Pending' MO to act as the active one for this station
-  // In a real app, this would be filtered by routing line == active_station
-  const currentMO = activeMOs.find(mo => mo.status === "IN_PROGRESS") || activeMOs.find(mo => mo.status === "PENDING")
+  const stationMOs = isGateStation
+    ? activeMOs.filter(mo => mo.currentGateId === activeSession?.active_station)
+    : activeMOs.filter(mo => mo.machineId === activeSession?.active_station)
+  const currentMO = stationMOs.find(mo => mo.status === "IN_PROGRESS") || stationMOs.find(mo => mo.status === "PENDING")
 
   const {
     isRunning,
@@ -46,6 +51,49 @@ export default function OperatorTabletPage() {
   const [scrapQty, setScrapQty] = useState<number>(0)
   const [selectedScrapMaterial, setSelectedScrapMaterial] = useState<string>("")
 
+  const completeOrderSequence = (passedQC?: number) => {
+    if (!currentMO) return
+    stopTimer()
+    const product = products.find(p => p.id === currentMO.productId)
+    const routing = product?.routing || []
+    const gates = product?.qualityGates || []
+    const currentSequence = currentMO.currentSequence || 1
+    
+    const baseUpdates: any = {}
+    if (passedQC !== undefined) {
+      baseUpdates.qcStatus = "DONE"
+      baseUpdates.passedQCBatches = passedQC
+    }
+
+    // If we are at a gate station, completing means resuming to next machine
+    if (isGateStation) {
+      const currentIndex = routing.findIndex(r => r.sequence === currentSequence)
+      if (currentIndex !== -1 && currentIndex < routing.length - 1) {
+        const nextStep = routing[currentIndex + 1]
+        updateMO(currentMO.id, { ...baseUpdates, currentGateId: undefined, machineId: nextStep.machineId, currentSequence: nextStep.sequence, status: "PENDING" })
+      } else {
+        updateMO(currentMO.id, { ...baseUpdates, currentGateId: undefined })
+        setMOStatus(currentMO.id, "COMPLETED")
+      }
+      return
+    }
+
+    // Machine station: check if a gate is attached after this sequence
+    const currentIndex = routing.findIndex(r => r.sequence === currentSequence)
+    const attachedGate = gates.find(g => g.sequenceAfter === currentSequence)
+
+    if (attachedGate) {
+      // Route to quality gate
+      updateMO(currentMO.id, { ...baseUpdates, machineId: undefined, currentGateId: attachedGate.gateId, status: "PENDING" })
+    } else if (currentIndex !== -1 && currentIndex < routing.length - 1) {
+      const nextStep = routing[currentIndex + 1]
+      updateMO(currentMO.id, { ...baseUpdates, currentSequence: nextStep.sequence, machineId: nextStep.machineId, status: "PENDING" })
+    } else {
+      updateMO(currentMO.id, { ...baseUpdates })
+      setMOStatus(currentMO.id, "COMPLETED")
+    }
+  }
+
   const handleAction = (action: "start" | "pause" | "complete") => {
     if (!currentMO) return
 
@@ -55,12 +103,11 @@ export default function OperatorTabletPage() {
     } else if (action === "pause") {
       pauseTimer()
     } else if (action === "complete") {
-      if (currentMO.qcStatus !== "DONE") {
-        setQcBatches(Array(Math.max(1, Math.round(currentMO.targetQty))).fill(false))
+      if (isGateStation) {
+        setQcPassedCount(currentMO.targetQty)
         setShowQcModal(true)
       } else {
-        stopTimer()
-        setMOStatus(currentMO.id, "COMPLETED")
+        completeOrderSequence()
       }
     }
   }
@@ -93,6 +140,15 @@ export default function OperatorTabletPage() {
 
   return (
     <div className="min-h-[calc(100dvh-64px)] w-full flex flex-col p-6">
+      <div className="max-w-[1600px] mx-auto w-full mb-6">
+        <Link 
+          href="/operator/select-station" 
+          className="inline-flex items-center gap-2 px-4 py-2 bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-colors font-medium text-sm"
+        >
+          <CaretLeft className="w-4 h-4" />
+          Back to Select Station
+        </Link>
+      </div>
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 max-w-[1600px] mx-auto w-full">
         
         {/* Left Column: Active Run Context */}
@@ -125,18 +181,18 @@ export default function OperatorTabletPage() {
                 <div>
                   <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Production Target</span>
                   <div className="mt-2 font-display text-2xl text-foreground font-bold">
-                    {currentMO.targetQty} <span className="text-lg text-muted-foreground font-normal">Batches</span>
+                    {currentMO.targetQty} <span className="text-lg text-muted-foreground font-normal">Units</span>
                   </div>
                 </div>
                 
-                {/* 10s per batch computation progress bar */}
+                {/* 1s per unit computation progress bar */}
                 {(() => {
-                  const totalSeconds = Math.max(1, currentMO.targetQty * 10);
+                  const totalSeconds = Math.max(1, currentMO.targetQty * 1);
                   const progressPercentage = Math.min(100, Math.floor((elapsedSeconds / totalSeconds) * 100));
                   return (
                     <div className="mt-6 flex flex-col gap-2">
                       <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground font-medium">Progress (10s/batch duration)</span>
+                        <span className="text-muted-foreground font-medium">Progress (1s per unit)</span>
                         <span className="font-mono text-foreground font-bold">{progressPercentage}%</span>
                       </div>
                       <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
@@ -260,23 +316,29 @@ export default function OperatorTabletPage() {
           </div>
           
           {/* QC and Logs Area */}
-          <div className="p-4 bg-card border-t border-border/50 flex flex-col gap-3">
-            <button 
-              onClick={() => {
-                setQcBatches(Array(Math.max(1, Math.round(currentMO.targetQty))).fill(false))
-                setShowQcModal(true)
-              }}
-              disabled={currentMO.qcStatus === "DONE"}
-              className="w-full py-3 bg-primary/10 text-primary font-bold rounded-xl border border-primary/20 hover:bg-primary/20 transition-colors flex justify-center items-center gap-2 disabled:opacity-50"
-            >
-              <CheckCircle weight="bold" className="w-5 h-5" />
-              {currentMO.qcStatus === "DONE" ? "Quality Check Passed" : "Perform Quality Check"}
-            </button>
-            <div className="flex justify-between items-center text-xs text-muted-foreground px-2">
-              <span>Status: {currentMO.qcStatus === "DONE" ? "QC DONE" : "QC PENDING"}</span>
-              <span className="font-mono text-amber-500">Target: {currentMO.targetQty} Batches</span>
+          {isGateStation && (
+            <div className="p-4 bg-card border-t border-border/50 flex flex-col gap-3">
+              <div className="flex items-center gap-2 px-2 mb-1">
+                <CheckSquareOffset weight="duotone" className="w-5 h-5 text-primary" />
+                <span className="text-sm font-display font-bold text-foreground">{activeGate?.name}</span>
+              </div>
+              <button 
+                onClick={() => {
+                  setQcPassedCount(currentMO.targetQty)
+                  setShowQcModal(true)
+                }}
+                disabled={currentMO.qcStatus === "DONE"}
+                className="w-full py-3 bg-primary/10 text-primary font-bold rounded-xl border border-primary/20 hover:bg-primary/20 transition-colors flex justify-center items-center gap-2 disabled:opacity-50"
+              >
+                <CheckCircle weight="bold" className="w-5 h-5" />
+                {currentMO.qcStatus === "DONE" ? "Quality Check Passed" : "Perform Quality Check"}
+              </button>
+              <div className="flex justify-between items-center text-xs text-muted-foreground px-2">
+                <span>Status: {currentMO.qcStatus === "DONE" ? "QC DONE" : "QC PENDING"}</span>
+                <span className="font-mono text-amber-500">Target: {currentMO.targetQty} Units</span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
       </div>
@@ -435,49 +497,34 @@ export default function OperatorTabletPage() {
                   <CheckCircle weight="fill" className="text-emerald-500 w-7 h-7" />
                   Quality Gate: Batch Release Check
                 </h2>
-                <p className="text-muted-foreground text-sm mb-6">
-                  Please verify that all manufactured batches have successfully completed visual assessment and weight-tolerance compliance tests.
+                <p className="text-sm text-muted-foreground mb-6">
+                  Please verify that all manufactured units have successfully completed visual assessment and weight-tolerance compliance tests.
                 </p>
 
-                <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto pr-2 mb-6">
-                  {qcBatches.map((checked, index) => (
-                    <label 
-                      key={index} 
-                      className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${checked ? 'border-primary bg-primary/5 text-foreground' : 'border-border bg-background hover:bg-muted/50 text-muted-foreground'}`}
-                    >
-                      <div className="flex flex-col">
-                        <span className="font-mono text-sm font-bold text-foreground">Batch #{(index + 1).toString().padStart(2, '0')}</span>
-                        <span className="text-xs text-muted-foreground">Standard 10s manufacturing run quality verified</span>
-                      </div>
-                      <input 
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => {
-                          const updated = [...qcBatches]
-                          updated[index] = e.target.checked
-                          setQcBatches(updated)
-                        }}
-                        className="w-5 h-5 rounded border-border text-primary focus:ring-primary/20"
-                      />
-                    </label>
-                  ))}
+                <div className="flex flex-col gap-2 mb-6">
+                  <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Number of Good Units</label>
+                  <input 
+                    type="number" 
+                    min="0" 
+                    max={currentMO.targetQty}
+                    value={qcPassedCount}
+                    onChange={(e) => setQcPassedCount(parseInt(e.target.value) || 0)}
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground font-mono"
+                    autoFocus
+                    required
+                  />
+                  <span className="text-[10px] text-muted-foreground">Out of {currentMO.targetQty} total produced units</span>
                 </div>
 
                 <div className="flex flex-col gap-3">
                   <button 
                     onClick={() => {
-                      const passedCount = qcBatches.filter(Boolean).length
-                      updateMO(currentMO.id, { 
-                        qcStatus: "DONE", 
-                        status: "COMPLETED", 
-                        passedQCBatches: passedCount 
-                      })
-                      stopTimer()
+                      completeOrderSequence(qcPassedCount)
                       setShowQcModal(false)
                     }}
                     className="w-full py-3.5 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors flex justify-center items-center gap-2 shadow-[0_4px_14px_0_rgba(16,185,129,0.39)]"
                   >
-                    Submit QC Check & Complete Order
+                    Submit QC Check & Proceed
                   </button>
                   <button 
                     onClick={() => setShowQcModal(false)}

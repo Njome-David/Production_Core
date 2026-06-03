@@ -403,7 +403,7 @@ export default function InventoryPage() {
                   </button>
                 </div>
                 
-                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">Provision Raw Material</h2>
+                <h2 className="text-2xl font-display font-bold text-foreground tracking-tight mb-2">Provision Raw Material</h2>
                 <p className="text-muted-foreground text-sm mb-6">
                   Register a brand new raw feedstock material. An ID and SKU will be dynamically computed.
                 </p>
@@ -472,7 +472,7 @@ export default function InventoryPage() {
                     disabled={!newMatName || newMatThreshold <= 0 || newMatMax <= 0}
                     className="w-full mt-2 py-3.5 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2 shadow-[0_4px_14px_0_rgba(16,185,129,0.39)]"
                   >
-                    Provision & Save
+                    Save
                   </button>
                 </form>
               </div>

@@ -3,6 +3,7 @@
 import React, { useMemo } from "react"
 import { motion } from "framer-motion"
 import { ChartLineUp, CurrencyDollar, FileText, ArrowUpRight, ArrowDownRight, Package } from "@phosphor-icons/react"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Cell } from "recharts"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
 
 export default function InsightsPage() {
@@ -45,6 +46,49 @@ export default function InsightsPage() {
       grossMargin
     }
   }, [inventoryLedger, activeMOs, materials, products])
+
+  const perProductInsights = useMemo(() => {
+    const productStats: Record<string, { name: string, totalProduced: number, revenue: number, cost: number }> = {}
+    
+    products.forEach(p => {
+      productStats[p.id] = { name: p.name, totalProduced: 0, revenue: 0, cost: 0 }
+    })
+    
+    activeMOs.filter(mo => mo.status === "COMPLETED").forEach(mo => {
+      if (productStats[mo.productId]) {
+        productStats[mo.productId].totalProduced += mo.targetQty
+        
+        // Revenue
+        const product = products.find(p => p.id === mo.productId)
+        if (product) {
+          productStats[mo.productId].revenue += product.price * mo.targetQty
+        }
+        
+        // Cost
+        const bom = mo.bom
+        if (bom) {
+          const matCost = bom.lines.reduce((sum, line) => {
+            const mat = materials.find(m => m.id === line.materialId)
+            return sum + (mat ? line.quantityPerUnit * mo.targetQty * mat.costAvg : 0)
+          }, 0)
+          productStats[mo.productId].cost += matCost
+        }
+      }
+    })
+    
+    return Object.values(productStats).map(stat => ({
+      ...stat,
+      margin: stat.revenue - stat.cost,
+      marginPct: stat.revenue > 0 ? ((stat.revenue - stat.cost) / stat.revenue) * 100 : 0
+    }))
+  }, [activeMOs, products, materials])
+
+  // Aggregated chart data: single waterfall view
+  const aggregatedChartData = [
+    { name: 'Revenue', value: insights.estimatedRevenue, fill: '#3B82F6' },
+    { name: 'COGS', value: insights.estimatedCostOfGoods, fill: '#F59E0B' },
+    { name: 'Margin', value: insights.grossMargin, fill: '#10B981' },
+  ]
 
   return (
     <div className="w-full flex flex-col gap-8 pb-12">
@@ -152,111 +196,95 @@ export default function InsightsPage() {
             <h3 className="font-display text-foreground font-bold text-lg">Margin Visualizer</h3>
             <ChartLineUp className="w-5 h-5 text-muted-foreground" />
           </div>
-          <div className="p-6 flex-1 flex flex-col items-center justify-center gap-4 min-h-[300px]">
-            {/* Animated Concentric Rings SVG Visualizer */}
-            {(() => {
-              const cogsPct = insights.estimatedRevenue > 0 ? (insights.estimatedCostOfGoods / insights.estimatedRevenue) * 100 : 0
-              const marginPct = insights.estimatedRevenue > 0 ? (insights.grossMargin / insights.estimatedRevenue) * 100 : 0
-
-              const circ1 = 2 * Math.PI * 75  // ~471.2
-              const circ2 = 2 * Math.PI * 55  // ~345.6
-              const circ3 = 2 * Math.PI * 35  // ~219.9
-
-              return (
-                <div className="w-full max-w-sm flex flex-col items-center gap-6">
-                  <div className="relative w-48 h-48 flex items-center justify-center">
-                    <svg className="w-full h-full -rotate-90" viewBox="0 0 200 200">
-                      {/* Background tracks */}
-                      <circle cx="100" cy="100" r="75" stroke="currentColor" className="text-muted/10" strokeWidth="12" fill="transparent" />
-                      <circle cx="100" cy="100" r="55" stroke="currentColor" className="text-muted/10" strokeWidth="12" fill="transparent" />
-                      <circle cx="100" cy="100" r="35" stroke="currentColor" className="text-muted/10" strokeWidth="12" fill="transparent" />
-                      
-                      {/* Revenue (100%) */}
-                      <motion.circle 
-                        cx="100" 
-                        cy="100" 
-                        r="75" 
-                        stroke="#10B981" // Emerald-500
-                        strokeWidth="12" 
-                        fill="transparent" 
-                        strokeDasharray={circ1}
-                        initial={{ strokeDashoffset: circ1 }}
-                        animate={{ strokeDashoffset: 0 }}
-                        transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-                        strokeLinecap="round"
-                      />
-                      {/* Cost of Goods */}
-                      <motion.circle 
-                        cx="100" 
-                        cy="100" 
-                        r="55" 
-                        stroke="#F59E0B" // Amber-500
-                        strokeWidth="12" 
-                        fill="transparent" 
-                        strokeDasharray={circ2}
-                        initial={{ strokeDashoffset: circ2 }}
-                        animate={{ strokeDashoffset: circ2 - (circ2 * Math.min(100, cogsPct)) / 100 }}
-                        transition={{ duration: 1.2, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-                        strokeLinecap="round"
-                      />
-                      {/* Gross Margin */}
-                      <motion.circle 
-                        cx="100" 
-                        cy="100" 
-                        r="35" 
-                        stroke="#10b981" // Primary theme color
-                        strokeWidth="12" 
-                        fill="transparent" 
-                        strokeDasharray={circ3}
-                        initial={{ strokeDashoffset: circ3 }}
-                        animate={{ strokeDashoffset: circ3 - (circ3 * Math.max(0, Math.min(100, marginPct))) / 100 }}
-                        transition={{ duration: 1.2, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    
-                    {/* Centered statistics HUD */}
-                    <div className="absolute flex flex-col items-center justify-center text-center">
-                      <span className="text-[10px] font-mono font-bold text-muted-foreground uppercase tracking-wider">Gross Margin</span>
-                      <span className="text-xl font-display font-bold text-foreground">{marginPct.toFixed(1)}%</span>
-                      <span className="text-[9px] text-emerald-500 font-mono mt-0.5 uppercase tracking-widest font-bold">Healthy</span>
-                    </div>
-                  </div>
-
-                  {/* High-fidelity custom legend */}
-                  <div className="w-full flex flex-col gap-2.5 bg-muted/20 p-4 rounded-xl border border-border/40">
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                        <span className="text-muted-foreground font-medium">Revenue Stream</span>
-                      </div>
-                      <span className="font-mono text-foreground font-bold">100%</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                        <span className="text-muted-foreground font-medium">Cost of Goods (COGS)</span>
-                      </div>
-                      <span className="font-mono text-foreground font-bold">{cogsPct.toFixed(1)}%</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded bg-primary" />
-                        <span className="text-muted-foreground font-medium">Net Gross Profit Margin</span>
-                      </div>
-                      <span className="font-mono text-foreground font-bold">{marginPct.toFixed(1)}%</span>
-                    </div>
-                  </div>
-                </div>
-              )
-            })()}
-            
-            <p className="text-xs text-muted-foreground font-mono mt-4 text-center max-w-xs leading-relaxed">
-              Margin visualization is based on moving average material costs versus targeted product MSRP.
-            </p>
+          <div className="p-6 flex-1 flex flex-col items-center justify-center min-h-[400px]">
+            {insights.completedOrdersCount > 0 ? (
+              <ResponsiveContainer width="100%" height="100%" minHeight={350}>
+                <BarChart data={aggregatedChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis 
+                    dataKey="name" 
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} 
+                    axisLine={{ stroke: 'hsl(var(--border))' }}
+                    tickLine={false}
+                  />
+                  <YAxis 
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} 
+                    axisLine={false} 
+                    tickLine={false}
+                    tickFormatter={(value) => `${value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value}`}
+                  />
+                  <RechartsTooltip 
+                    cursor={{ fill: 'hsl(var(--muted)/0.2)' }}
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '0.75rem', fontSize: '12px', color: 'hsl(var(--foreground))' }}
+                    itemStyle={{ fontWeight: 'bold' }}
+                    formatter={(value: number) => [`${value.toLocaleString()} FCFA`, undefined]}
+                  />
+                  <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={80}>
+                    {aggregatedChartData.map((entry, idx) => (
+                      <Cell key={idx} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex flex-col items-center justify-center text-muted-foreground gap-2">
+                <ChartLineUp className="w-12 h-12 opacity-20" />
+                <span className="text-sm font-medium">No completed orders to calculate margins.</span>
+              </div>
+            )}
           </div>
         </motion.div>
       </div>
+
+      {/* Per Product Table Section */}
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ease: [0.32, 0.72, 0, 1] as const, duration: 0.6, delay: 0.4 }}
+        className="flex flex-col border border-border/50 rounded-2xl bg-card overflow-hidden shadow-sm mt-8"
+      >
+        <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center justify-between">
+          <h3 className="font-display text-foreground font-bold text-lg">Detailed Per-Product Financials</h3>
+          <FileText className="w-5 h-5 text-muted-foreground" />
+        </div>
+        <div className="w-full overflow-x-auto">
+          <table className="w-full text-left text-sm border-collapse">
+            <thead>
+              <tr className="bg-muted/10 border-b border-border/40 text-muted-foreground text-xs uppercase font-mono tracking-wider">
+                <th className="py-4 px-6 font-semibold">Product</th>
+                <th className="py-4 px-6 font-semibold">Total Produced</th>
+                <th className="py-4 px-6 font-semibold text-right">Revenue</th>
+                <th className="py-4 px-6 font-semibold text-right">COGS</th>
+                <th className="py-4 px-6 font-semibold text-right">Gross Margin</th>
+                <th className="py-4 px-6 font-semibold text-right">Margin %</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/20">
+              {perProductInsights.map((stat, idx) => {
+                const unitPrice = stat.totalProduced > 0 ? stat.revenue / stat.totalProduced : 0
+                const costPerUnit = stat.totalProduced > 0 ? stat.cost / stat.totalProduced : 0
+                return (
+                  <tr key={idx} className={`hover:bg-muted/5 transition-colors group ${stat.totalProduced === 0 ? 'opacity-50' : ''}`}>
+                    <td className="py-4 px-6 font-medium text-foreground">{stat.name}</td>
+                    <td className="py-4 px-6 font-mono text-muted-foreground">{stat.totalProduced.toLocaleString()}</td>
+                    <td className="py-4 px-6 font-mono text-right font-bold text-foreground">{stat.revenue.toLocaleString()} FCFA</td>
+                    <td className="py-4 px-6 font-mono text-right text-amber-500">{stat.cost.toLocaleString()} FCFA</td>
+                    <td className="py-4 px-6 font-mono text-right font-bold text-emerald-500">{stat.margin.toLocaleString()} FCFA</td>
+                    <td className="py-4 px-6 font-mono text-right font-bold text-primary">{stat.marginPct.toFixed(1)}%</td>
+                  </tr>
+                )
+              })}
+              {perProductInsights.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-muted-foreground text-sm">
+                    No production data available for detailed analysis.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </motion.div>
     </div>
   )
 }

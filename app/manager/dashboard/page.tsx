@@ -17,12 +17,42 @@ export default function ManagerDashboard() {
   const [newMoTargetQtyInput, setNewMoTargetQtyInput] = useState(10)
   const [newMoScheduledDate, setNewMoScheduledDate] = useState("")
 
-  // Conversion factors relative to batches
-  const unitFactor = activeUnit === "batches" ? 1 : activeUnit === "tons" ? 1.5 : 1500;
-  const unitLabel = activeUnit === "batches" ? "Batches" : activeUnit === "tons" ? "Tons" : "kg";
+  const selectedProduct = products.find(p => p.id === newMoProductId)
+  const productWeight = selectedProduct?.finalMass || 1
 
-  // Target Qty in standard batches database unit
-  const targetQtyInBatches = newMoTargetQtyInput / unitFactor;
+  // Per-product mass calculation: pct mode uses finalMass, kg mode sums BOM
+  const getProductMass = (productId: string): number => {
+    const bom = boms.find(b => b.productId === productId)
+    if (!bom) return 1
+    if (bom.unit === 'pct') {
+      const prod = products.find(p => p.id === productId)
+      return prod?.finalMass || 1
+    }
+    // kg mode: sum of all BOM line quantities
+    const sum = bom.lines.reduce((acc, line) => acc + line.quantityPerUnit, 0)
+    return sum > 0 ? sum : 1
+  }
+
+  const convertQty = (qtyInUnits: number, productId: string, toUnit: "units" | "kg" | "tons"): number => {
+    const mass = getProductMass(productId)
+    if (toUnit === "units") return qtyInUnits
+    if (toUnit === "kg") return qtyInUnits * mass
+    if (toUnit === "tons") return (qtyInUnits * mass) / 1000
+    return qtyInUnits
+  }
+
+  const getUnitMultiplier = (u: "units" | "tons" | "kg") => {
+    if (u === "units") return 1;
+    if (u === "kg") return 1 / productWeight;
+    if (u === "tons") return 1000 / productWeight;
+    return 1;
+  }
+  
+  const unitFactor = getUnitMultiplier(activeUnit);
+  const unitLabel = activeUnit === "units" ? "Units" : activeUnit === "tons" ? "Tons" : "kg";
+
+  // Target Qty in standard units database unit
+  const targetQtyInBatches = newMoTargetQtyInput * unitFactor;
   
   // Calculate estimates
   const estRevenue = React.useMemo(() => {
@@ -92,7 +122,7 @@ export default function ManagerDashboard() {
     setShowNewMoModal(false)
     setNewMoProductId("")
     setNewMoLineId("")
-    setNewMoTargetQtyInput(activeUnit === "kg" ? 15000 : activeUnit === "tons" ? 15 : 10)
+    setNewMoTargetQtyInput(activeUnit === "kg" ? 10 * productWeight : activeUnit === "tons" ? (10 * productWeight) / 1000 : 10)
     setNewMoScheduledDate("")
   }
 
@@ -122,15 +152,15 @@ export default function ManagerDashboard() {
 
             {/* Premium Unit Segmented Switcher */}
             <div className="flex bg-muted/40 p-1 rounded-xl border border-border/50 w-max">
-              {(["batches", "tons", "kg"] as const).map(unit => (
+              {(["units", "tons", "kg"] as const).map(unit => (
                 <button
                   key={unit}
                   type="button"
                   onClick={() => {
+                    const oldFactor = getUnitMultiplier(activeUnit);
+                    const newFactor = getUnitMultiplier(unit);
                     setActiveUnit(unit);
-                    const oldFactor = unitFactor;
-                    const newFactor = unit === "batches" ? 1 : unit === "tons" ? 1.5 : 1500;
-                    setNewMoTargetQtyInput(Math.round((newMoTargetQtyInput / oldFactor) * newFactor));
+                    setNewMoTargetQtyInput(Number(((newMoTargetQtyInput * oldFactor) / newFactor).toFixed(2)));
                   }}
                   className={`px-3 py-1.5 text-xs font-mono font-bold uppercase rounded-lg transition-colors ${activeUnit === unit ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
                 >
@@ -203,7 +233,7 @@ export default function ManagerDashboard() {
               </div>
               
               <div className="col-span-2 text-sm text-foreground flex flex-col justify-center">
-                <div><span className="font-mono">{Math.round(mo.targetQty * unitFactor).toLocaleString()}</span> <span className="text-muted-foreground text-xs">{unitLabel}</span></div>
+                <div><span className="font-mono">{convertQty(mo.targetQty, mo.productId, activeUnit).toFixed(activeUnit === 'units' ? 0 : 2)}</span> <span className="text-muted-foreground text-xs">{unitLabel}</span></div>
                 {mo.programmedDate && <span className="text-xs text-amber-600 font-mono">Sch: {mo.programmedDate}</span>}
               </div>
               
@@ -228,11 +258,18 @@ export default function ManagerDashboard() {
                       <CheckCircle className="text-emerald-500 w-4 h-4" weight="fill" />
                       <span className="text-sm text-emerald-600 font-medium">Completed</span>
                     </div>
-                    {mo.passedQCBatches !== undefined && (
-                      <span className="text-[10px] text-muted-foreground font-mono leading-none mt-0.5">
-                        Passed: {mo.passedQCBatches} / {mo.targetQty} Batches
-                      </span>
-                    )}
+                    {mo.passedQCBatches !== undefined && (() => {
+                      const product = products.find(p => p.id === mo.productId)
+                      const hasQC = product?.qualityGates && product.qualityGates.length > 0
+                      if (hasQC) {
+                        return (
+                          <span className="text-[10px] text-muted-foreground font-mono leading-none mt-0.5">
+                            Passed: {mo.passedQCBatches} / {mo.targetQty} Units
+                          </span>
+                        )
+                      }
+                      return null
+                    })()}
                   </div>
                 )}
               </div>
