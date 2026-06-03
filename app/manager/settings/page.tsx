@@ -719,23 +719,23 @@ export default function SettingsPage() {
                       <div className="flex-1 grid grid-cols-2 md:grid-cols-5 gap-3">
                         <div className="col-span-2 md:col-span-2 flex flex-col gap-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Parameter Name</label>
-                          <input type="text" value={qc.name} onChange={e => handleUpdateQC(idx, 'name', e.target.value)} className="w-full px-3 py-1.5 bg-background border border-border rounded text-sm"/>
+                          <input type="text" value={qc.name} onChange={e => handleUpdateQC(idx, 'name', e.target.value)} className="w-full px-3 py-1.5 bg-background text-foreground border border-border rounded text-sm"/>
                         </div>
                         <div className="col-span-1 flex flex-col gap-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Min</label>
-                          <input type="number" value={qc.minValue} onChange={e => handleUpdateQC(idx, 'minValue', parseFloat(e.target.value)||0)} className="w-full px-3 py-1.5 bg-background border border-border rounded font-mono text-sm"/>
+                          <input type="number" value={qc.minValue} onChange={e => handleUpdateQC(idx, 'minValue', parseFloat(e.target.value)||0)} className="w-full px-3 py-1.5 bg-background text-foreground border border-border rounded font-mono text-sm"/>
                         </div>
                         <div className="col-span-1 flex flex-col gap-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Max</label>
-                          <input type="number" value={qc.maxValue} onChange={e => handleUpdateQC(idx, 'maxValue', parseFloat(e.target.value)||0)} className="w-full px-3 py-1.5 bg-background border border-border rounded font-mono text-sm"/>
+                          <input type="number" value={qc.maxValue} onChange={e => handleUpdateQC(idx, 'maxValue', parseFloat(e.target.value)||0)} className="w-full px-3 py-1.5 bg-background text-foreground border border-border rounded font-mono text-sm"/>
                         </div>
                         <div className="col-span-1 flex flex-col gap-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Unit</label>
-                          <input type="text" value={qc.unit} onChange={e => handleUpdateQC(idx, 'unit', e.target.value)} className="w-full px-3 py-1.5 bg-background border border-border rounded text-sm"/>
+                          <input type="text" value={qc.unit} onChange={e => handleUpdateQC(idx, 'unit', e.target.value)} className="w-full px-3 py-1.5 bg-background text-foreground border border-border rounded text-sm"/>
                         </div>
                         <div className="col-span-2 md:col-span-2 flex flex-col gap-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Tolerance</label>
-                          <input type="number" step="0.1" value={qc.tolerance} onChange={e => handleUpdateQC(idx, 'tolerance', parseFloat(e.target.value)||0)} className="w-full px-3 py-1.5 bg-background border border-border rounded font-mono text-sm"/>
+                          <input type="number" step="0.1" value={qc.tolerance} onChange={e => handleUpdateQC(idx, 'tolerance', parseFloat(e.target.value)||0)} className="w-full px-3 py-1.5 bg-background text-foreground border border-border rounded font-mono text-sm"/>
                         </div>
                       </div>
                       <button type="button" onClick={() => handleRemoveQC(idx)} className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg mt-5"><Trash className="w-5 h-5"/></button>
