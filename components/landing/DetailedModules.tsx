@@ -147,7 +147,7 @@ export function DetailedModules() {
           </p>
         </motion.div>
         <motion.div variants={itemVariants} className="flex-1 w-full relative">
-          <div className="absolute inset-0 bg-accent-blue/20 blur-[100px] rounded-full pointer-events-none" />
+          <div className="absolute inset-0 bg-blue-500/20 blur-[100px] rounded-full pointer-events-none" />
           <div className="relative bg-card border border-border rounded-[2rem] p-8 shadow-xl aspect-square flex flex-col items-center justify-center">
              <div className="w-full h-full max-h-[90%] border-[8px] border-border rounded-3xl bg-background overflow-hidden relative shadow-inner flex flex-col group">
                <div className="h-12 bg-accent-blue/10 border-b border-accent-blue/20 flex items-center px-4 justify-between">
