@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
 import { UserSwitchIcon, FactoryIcon } from "@phosphor-icons/react"
 
+import { ThemeToggle } from "@/components/landing/ThemeToggle"
+
 export function OperatorShell({ children }: { children: React.ReactNode }) {
   const { activeSession, setActiveSession } = useMockData()
   const router = useRouter()
@@ -40,6 +42,7 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
               <span className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"></span>
               Operator Mode
             </div>
+            <ThemeToggle />
             <button 
               onClick={() => {
                 router.push("/org-selector")

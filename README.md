@@ -2,6 +2,11 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+### Test Credentials
+To access the testing environment, use the following credentials on the login page:
+- **Email:** david@alpha-feed.com
+- **Password:** password
+
 First, run the development server:
 
 ```bash

@@ -6,6 +6,8 @@ import Link from "next/link"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
 import { ChartLineUp, Monitor, Archive, Gear, UserSwitchIcon, BuildingOfficeIcon } from "@phosphor-icons/react"
 
+import { ThemeToggle } from "@/components/landing/ThemeToggle"
+
 export function ManagerShell({ children }: { children: React.ReactNode }) {
   const { activeSession, setActiveSession } = useMockData()
   const router = useRouter()
@@ -69,6 +71,7 @@ export function ManagerShell({ children }: { children: React.ReactNode }) {
               <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
               Manager Mode
             </div>
+            <ThemeToggle />
             <button 
               onClick={() => {
                 router.push("/org-selector")

@@ -126,13 +126,24 @@ export default function OperatorTabletPage() {
 
   if (!currentMO) {
     return (
-      <div className="min-h-[calc(100dvh-64px)] w-full flex items-center justify-center p-6">
-        <div className="flex flex-col items-center text-center max-w-md">
-          <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mb-6">
-            <PresentationChart className="w-10 h-10 text-muted-foreground opacity-50" />
+      <div className="min-h-[calc(100dvh-64px)] w-full flex flex-col p-6">
+        <div className="max-w-[1600px] mx-auto w-full mb-6">
+          <Link 
+            href="/operator/select-station" 
+            className="inline-flex items-center gap-2 px-4 py-2 bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-colors font-medium text-sm"
+          >
+            <CaretLeft className="w-4 h-4" />
+            Back to Select Station
+          </Link>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center text-center max-w-md">
+            <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mb-6">
+              <PresentationChart className="w-10 h-10 text-muted-foreground opacity-50" />
+            </div>
+            <h2 className="text-2xl font-display font-bold mb-2">No Active Orders</h2>
+            <p className="text-muted-foreground">There are currently no manufacturing orders assigned to this station. Await dispatch from the production manager.</p>
           </div>
-          <h2 className="text-2xl font-display font-bold mb-2">No Active Orders</h2>
-          <p className="text-muted-foreground">There are currently no manufacturing orders assigned to this station. Await dispatch from the production manager.</p>
         </div>
       </div>
     )

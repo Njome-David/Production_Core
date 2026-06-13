@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Commissioner, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { MockFeedProductionProvider } from '@/providers/MockFeedProductionProvider'
+import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
 
 const commissioner = Commissioner({ 
@@ -37,10 +38,12 @@ export default function RootLayout({
         <link href="https://api.fontshare.com/v2/css?f[]=satoshi@900,700,500,300,400&display=swap" rel="stylesheet" />
       </head>
       <body className={`${commissioner.variable} ${geistMono.variable} font-sans antialiased`}>
-        <MockFeedProductionProvider>
-          {children}
-          {process.env.NODE_ENV === 'production' && <Analytics />}
-        </MockFeedProductionProvider>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+          <MockFeedProductionProvider>
+            {children}
+            {process.env.NODE_ENV === 'production' && <Analytics />}
+          </MockFeedProductionProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

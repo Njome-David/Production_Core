@@ -12,8 +12,8 @@ export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false)
   const [name, setName] = useState("")
   const [company, setCompany] = useState("")
-  const [email, setEmail] = useState("david@alpha-feed.com")
-  const [password, setPassword] = useState("password")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
@@ -63,7 +63,7 @@ export default function LoginPage() {
             <div className="w-48 h-16 flex items-center justify-center overflow-hidden relative rounded-2xl shadow-sm">
               <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.parentElement?.classList.add('fallback-icon'); }} />
               <div className="hidden fallback-icon-svg flex-col items-center gap-2 absolute inset-0 justify-center">
-                <BuildingsIcon weight="duotone" className="w-12 h-12 text-primary" />
+                <BuildingsIcon weight="duotone" className="w-12 h-12 text-foreground" />
                 <span className="font-display font-bold text-foreground tracking-tight text-xl">PRODUCTION_CORE</span>
               </div>
             </div>
