@@ -4,7 +4,7 @@ import React, { useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
-import { ChartLineUp, Monitor, Archive, Gear, UserSwitchIcon, BuildingOfficeIcon } from "@phosphor-icons/react"
+import { ChartLineUp, Monitor, Archive, Gear, UserSwitchIcon, BuildingOfficeIcon, House } from "@phosphor-icons/react"
 
 import { ThemeToggle } from "@/components/landing/ThemeToggle"
 
@@ -37,6 +37,16 @@ export function ManagerShell({ children }: { children: React.ReactNode }) {
       <header className="border-b border-border/50 bg-card/50 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-8">
+            <div className="flex items-center gap-3">
+            {/* Back to Landing */}
+            <Link
+              href="/"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1.5 rounded-lg hover:bg-muted"
+            >
+              <House weight="duotone" className="w-4 h-4" />
+              <span className="hidden md:inline font-medium">Landing</span>
+            </Link>
+
             <div className="flex items-center gap-2 font-display font-bold text-lg tracking-tight">
               <BuildingOfficeIcon weight="duotone" className="w-6 h-6 text-primary" />
               <span className="text-muted-foreground font-normal text-sm">PROD_CORE</span>
@@ -44,6 +54,7 @@ export function ManagerShell({ children }: { children: React.ReactNode }) {
                 {activeSession.org_id.toUpperCase()}
               </span>
             </div>
+          </div>
             
             <nav className="hidden md:flex items-center gap-1">
               {navLinks.map((link) => {

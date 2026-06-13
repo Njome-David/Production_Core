@@ -2,9 +2,10 @@
 
 import React, { useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { motion } from "framer-motion"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
-import { BuildingsIcon, ArrowRight } from "@phosphor-icons/react"
+import { BuildingsIcon, ArrowRight, House } from "@phosphor-icons/react"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -23,6 +24,15 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-[100dvh] w-full flex flex-col md:flex-row bg-background">
+      {/* Back to landing */}
+      <Link
+        href="/"
+        className="absolute top-5 left-5 z-20 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-2 rounded-xl hover:bg-muted/60 backdrop-blur-sm"
+      >
+        <House weight="duotone" className="w-4 h-4" />
+        <span className="font-medium hidden sm:inline">Home</span>
+      </Link>
+
       {/* Left Asset Pane (50/50 Split) */}
       <div className="hidden md:flex flex-1 relative bg-card overflow-hidden items-end p-12">
         <div className="absolute inset-0 z-0">

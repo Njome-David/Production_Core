@@ -2,8 +2,9 @@
 
 import React, { useEffect } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
-import { UserSwitchIcon, FactoryIcon } from "@phosphor-icons/react"
+import { UserSwitchIcon, FactoryIcon, House } from "@phosphor-icons/react"
 
 import { ThemeToggle } from "@/components/landing/ThemeToggle"
 
@@ -28,6 +29,15 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
       <header className="border-b border-border/50 bg-card/50 backdrop-blur-md">
         <div className="w-full px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
+            {/* Back to Landing */}
+            <Link
+              href="/"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1.5 rounded-lg hover:bg-muted"
+            >
+              <House weight="duotone" className="w-4 h-4" />
+              <span className="hidden md:inline font-medium">Landing</span>
+            </Link>
+
             <div className="flex items-center gap-2 font-display font-bold text-lg tracking-tight">
               <FactoryIcon weight="duotone" className="w-6 h-6 text-primary" />
               <span className="text-muted-foreground font-normal text-sm">PROD_CORE FLOOR</span>

@@ -2,9 +2,10 @@
 
 import React, { useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
-import { StorefrontIcon, Briefcase, DeviceTabletSpeakerIcon, ArrowRight, Plus, Building, X, SignOut, SignIn } from "@phosphor-icons/react"
+import { StorefrontIcon, Briefcase, DeviceTabletSpeakerIcon, ArrowRight, Plus, Building, X, SignOut, SignIn, House } from "@phosphor-icons/react"
 
 export default function OrgSelectorPage() {
   const router = useRouter()
@@ -58,6 +59,15 @@ export default function OrgSelectorPage() {
 
   return (
     <div className="min-h-[100dvh] w-full flex flex-col items-center justify-center bg-background p-6 relative">
+      {/* Back to landing - top left */}
+      <Link
+        href="/"
+        className="absolute top-6 left-6 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-2 rounded-xl hover:bg-muted"
+      >
+        <House weight="duotone" className="w-4 h-4" />
+        <span className="font-medium hidden sm:inline">Home</span>
+      </Link>
+
       <button 
         onClick={() => router.push("/login")}
         className="absolute top-6 right-6 p-2 text-muted-foreground hover:bg-muted hover:text-foreground rounded-full transition-colors flex items-center gap-2"
