@@ -504,7 +504,7 @@ export default function OperatorTabletPage() {
               className="relative w-full max-w-xl pointer-events-auto"
             >
               <div className="rounded-3xl bg-card border border-border shadow-[0_20px_40px_rgba(0,0,0,0.1)] p-8 overflow-hidden">
-                <h2 className="text-2xl font-display font-bold tracking-tight mb-2 flex items-center gap-2">
+                <h2 className="text-2xl font-display text-foreground font-bold tracking-tight mb-2 flex items-center gap-2">
                   <CheckCircle weight="fill" className="text-emerald-500 w-7 h-7" />
                   Quality Gate: Batch Release Check
                 </h2>
