@@ -37,7 +37,7 @@ export default function SelectStationPage() {
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-amber-500/10 mb-6">
             <Factory weight="duotone" className="w-7 h-7 text-amber-600" />
           </div>
-          <h1 className="text-3xl font-display font-bold tracking-tight mb-2">Select Work Station</h1>
+          <h1 className="text-3xl font-display text-foreground font-bold tracking-tight mb-2">Select Work Station</h1>
           <p className="text-muted-foreground">Select the physical spot you are currently operating.</p>
         </motion.div>
 
