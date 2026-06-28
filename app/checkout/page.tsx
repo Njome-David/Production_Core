@@ -250,15 +250,6 @@ function CheckoutForm() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-white/30 pt-2">
-                <ShieldCheck weight="bold" className="w-4 h-4 text-emerald-400" />
-                {language === "fr"
-                  ? "Paiement simulé — aucune carte réelle n'est débitée"
-                  : language === "es"
-                    ? "Pago simulado — no se cobra ninguna tarjeta real"
-                    : "Simulated payment — no real card is charged"}
-              </div>
-
               <motion.button
                 type="submit"
                 whileHover={{ scale: 1.02 }}
