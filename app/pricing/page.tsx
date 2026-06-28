@@ -10,6 +10,17 @@ import type { DictionaryKeys } from "@/lib/i18n/dictionary"
 
 const PLANS = [
   {
+    key: "free",
+    popular: false,
+    features: [
+      "pricing_free_feat1",
+      "pricing_free_feat2",
+      "pricing_free_feat3",
+      "pricing_free_feat4",
+    ],
+    excluded: [] as string[],
+  },
+  {
     key: "startup",
     popular: false,
     features: [
@@ -127,11 +138,12 @@ function PricingPageContent() {
 
       {/* Plans grid */}
       <section className="px-6 md:px-12 pb-24 md:pb-32">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           {PLANS.map((plan, idx) => {
+            const isFree = plan.key === "free"
             const priceKey = `pricing_${plan.key}_price` as DictionaryKeys
             const basePrice = parseInt(t(priceKey))
-            const displayPrice = annual ? Math.round(basePrice * 12 * 0.8 / 12) : basePrice
+            const displayPrice = annual && !isFree ? Math.round(basePrice * 12 * 0.8 / 12) : basePrice
 
             return (
               <motion.div
@@ -161,21 +173,29 @@ function PricingPageContent() {
                 </div>
 
                 <div className="mb-8">
-                  <span className="text-5xl font-display font-bold text-white">${displayPrice}</span>
-                  <span className="text-white/40 text-sm ml-1">/mo</span>
+                  {isFree ? (
+                    <span className="text-5xl font-display font-bold text-white">{t("pricing_free" as DictionaryKeys)}</span>
+                  ) : (
+                    <>
+                      <span className="text-5xl font-display font-bold text-white">${displayPrice}</span>
+                      <span className="text-white/40 text-sm ml-1">/mo</span>
+                    </>
+                  )}
                 </div>
 
-                <Link href="/login">
+                <Link href={isFree ? "/demo" : "/login"}>
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     className={`w-full h-12 rounded-full font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
                       plan.popular
                         ? "bg-emerald-500 text-white hover:bg-emerald-400 shadow-lg shadow-emerald-500/20"
-                        : "bg-white/10 text-white border border-white/20 hover:bg-white/20"
+                        : isFree
+                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20"
+                          : "bg-white/10 text-white border border-white/20 hover:bg-white/20"
                     }`}
                   >
-                    {t("pricing_cta")}
+                    {t(isFree ? "pricing_cta_demo" : "pricing_cta")}
                     <ArrowRight weight="bold" className="w-4 h-4" />
                   </motion.button>
                 </Link>
