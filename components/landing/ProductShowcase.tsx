@@ -66,7 +66,7 @@ export function ProductShowcase() {
         >
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-6">
             <span className="w-1.5 h-1.5 rounded-full bg-white/40" />
-            <span className="text-xs font-mono font-semibold tracking-widest text-white/40 uppercase">MODULES</span>
+            <span className="text-xs font-mono font-semibold tracking-widest text-white/40 uppercase">{t("product_badge")}</span>
           </div>
           <h2 className="text-4xl md:text-5xl font-display font-bold tracking-tighter text-white">
             {t("product_heading_title")}

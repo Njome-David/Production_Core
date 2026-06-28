@@ -4,31 +4,32 @@ import React, { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { X } from "@phosphor-icons/react"
 import { useLanguage } from "@/providers/LanguageProvider"
+import type { DictionaryKeys } from "@/lib/i18n/dictionary"
 
 const SCREENSHOTS = [
   {
     src: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80",
-    alt: "Dashboard analytics",
+    altKey: "gallery_img1" as DictionaryKeys,
   },
   {
     src: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=600&q=80",
-    alt: "Financial insights",
+    altKey: "gallery_img2" as DictionaryKeys,
   },
   {
     src: "https://images.unsplash.com/photo-1553877522-43269d4ea984?auto=format&fit=crop&w=600&q=80",
-    alt: "Production overview",
+    altKey: "gallery_img3" as DictionaryKeys,
   },
   {
     src: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=600&q=80",
-    alt: "Inventory management",
+    altKey: "gallery_img4" as DictionaryKeys,
   },
   {
     src: "https://images.unsplash.com/photo-1573164713988-8665fc963095?auto=format&fit=crop&w=600&q=80",
-    alt: "Operator tablet",
+    altKey: "gallery_img5" as DictionaryKeys,
   },
   {
     src: "https://images.unsplash.com/photo-1581092795360-fd1ca04f0952?auto=format&fit=crop&w=600&q=80",
-    alt: "Quality control",
+    altKey: "gallery_img6" as DictionaryKeys,
   },
 ]
 
@@ -76,12 +77,12 @@ export function ScreenshotGallery() {
               >
                 <img
                   src={shot.src}
-                  alt={shot.alt}
+                  alt={t(shot.altKey)}
                   className="w-full h-full object-cover opacity-70 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E11] via-transparent to-transparent opacity-60" />
                 <div className="absolute bottom-3 left-3">
-                  <span className="text-xs font-mono font-semibold tracking-widest text-white/60">{shot.alt}</span>
+                  <span className="text-xs font-mono font-semibold tracking-widest text-white/60">{t(shot.altKey)}</span>
                 </div>
               </motion.button>
             ))}
@@ -111,7 +112,7 @@ export function ScreenshotGallery() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               src={SCREENSHOTS[selected].src}
-              alt={SCREENSHOTS[selected].alt}
+              alt={t(SCREENSHOTS[selected].altKey)}
               className="max-w-full max-h-full rounded-2xl shadow-2xl"
             />
           </motion.div>

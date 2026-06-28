@@ -24,7 +24,7 @@ function formatExpiry(value: string) {
 
 function CheckoutForm() {
   const searchParams = useSearchParams()
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
 
   const planKey = searchParams.get("plan") || "startup"
   const annual = searchParams.get("annual") === "true"
@@ -79,7 +79,7 @@ function CheckoutForm() {
         </div>
 
         <h2 className="text-3xl md:text-4xl font-display font-bold tracking-tighter text-white mb-4">
-          {language === "fr" ? "Paiement confirmé !" : language === "es" ? "¡Pago confirmado!" : "Payment confirmed!"}
+          {t("checkout_success_title")}
         </h2>
 
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8 text-left">
@@ -87,7 +87,7 @@ function CheckoutForm() {
             <span className="text-white/50 text-sm">{t("pricing_title")}</span>
             <span className="text-emerald-400 text-sm font-semibold">
               <Check weight="bold" className="w-4 h-4 inline mr-1" />
-              {language === "fr" ? "Actif" : language === "es" ? "Activo" : "Active"}
+              {t("checkout_success_status")}
             </span>
           </div>
           <div className="flex items-center justify-between py-3 border-t border-white/10">
@@ -95,17 +95,13 @@ function CheckoutForm() {
             <span className="text-white font-semibold">${displayPrice}/mo</span>
           </div>
           <div className="flex items-center justify-between py-3 border-t border-white/10">
-            <span className="text-white/70 text-sm">{annual ? "Annual" : "Monthly"}</span>
-            <span className="text-white/50 text-sm">{annual ? "-20% off" : ""}</span>
+            <span className="text-white/70 text-sm">{annual ? t("checkout_billed_annual") : t("checkout_billed_monthly")}</span>
+            <span className="text-white/50 text-sm">{annual ? t("checkout_save_annual") : ""}</span>
           </div>
         </div>
 
         <p className="text-white/40 text-sm mb-8">
-          {language === "fr"
-            ? "Un email de confirmation vous a été envoyé. Vous allez être redirigé vers votre tableau de bord."
-            : language === "es"
-              ? "Se le ha enviado un correo de confirmación. Será redirigido a su panel de control."
-              : "A confirmation email has been sent. You will be redirected to your dashboard."}
+          {t("checkout_success_desc")}
         </p>
 
         <Link href="/login">
@@ -141,16 +137,14 @@ function CheckoutForm() {
         <div className="lg:col-span-2">
           <div className="bg-white/5 border border-white/10 rounded-2xl p-6 sticky top-28">
             <h3 className="text-sm font-mono tracking-widest text-white/40 uppercase mb-6">
-              {language === "fr" ? "Récapitulatif" : language === "es" ? "Resumen" : "Order Summary"}
+              {t("checkout_summary")}
             </h3>
 
             <div className="flex items-center justify-between mb-6">
               <div>
                 <p className="text-white font-semibold text-lg">{planName}</p>
                 <p className="text-white/40 text-sm mt-0.5">
-                  {annual
-                    ? language === "fr" ? "Facturé annuellement" : language === "es" ? "Facturado anualmente" : "Billed annually"
-                    : language === "fr" ? "Facturé mensuellement" : language === "es" ? "Facturado mensualmente" : "Billed monthly"}
+                  {annual ? t("checkout_billed_annual") : t("checkout_billed_monthly")}
                 </p>
               </div>
               <div className="text-right">
@@ -162,7 +156,7 @@ function CheckoutForm() {
             {annual && (
               <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3 mb-6">
                 <p className="text-emerald-400 text-sm font-semibold">
-                  {language === "fr" ? "Économisez 20% avec la facturation annuelle" : language === "es" ? "Ahorre 20% con facturación anual" : "Save 20% with annual billing"}
+                  {t("checkout_save_annual")}
                 </p>
               </div>
             )}
@@ -184,14 +178,14 @@ function CheckoutForm() {
             <div className="flex items-center gap-3 mb-8">
               <Lock weight="bold" className="w-5 h-5 text-emerald-400" />
               <h3 className="text-lg font-display font-bold text-white">
-                {language === "fr" ? "Paiement sécurisé" : language === "es" ? "Pago seguro" : "Secure payment"}
+                {t("checkout_payment_title")}
               </h3>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-white/70 mb-1.5">
-                  {language === "fr" ? "Numéro de carte" : language === "es" ? "Número de tarjeta" : "Card number"}
+                  {t("checkout_card_number")}
                 </label>
                 <div className="relative">
                   <CreditCard weight="duotone" className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
@@ -199,7 +193,7 @@ function CheckoutForm() {
                     type="text"
                     value={cardNumber}
                     onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
-                    placeholder="4242 4242 4242 4242"
+                    placeholder={t("checkout_card_placeholder")}
                     required
                     className="w-full h-12 pl-12 pr-4 rounded-xl bg-[#0B0E11] border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm tracking-widest font-mono"
                   />
@@ -208,13 +202,13 @@ function CheckoutForm() {
 
               <div>
                 <label className="block text-sm font-medium text-white/70 mb-1.5">
-                  {language === "fr" ? "Titulaire de la carte" : language === "es" ? "Titular de la tarjeta" : "Cardholder name"}
+                  {t("checkout_cardholder")}
                 </label>
                 <input
                   type="text"
                   value={cardName}
                   onChange={(e) => setCardName(e.target.value)}
-                  placeholder={language === "fr" ? "Jean Dupont" : language === "es" ? "Juan Pérez" : "John Doe"}
+                  placeholder={t("checkout_cardholder_placeholder")}
                   required
                   className="w-full h-12 px-4 rounded-xl bg-[#0B0E11] border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm"
                 />
@@ -223,7 +217,7 @@ function CheckoutForm() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-white/70 mb-1.5">
-                    {language === "fr" ? "Date d'expiration" : language === "es" ? "Fecha de vencimiento" : "Expiry date"}
+                    {t("checkout_expiry")}
                   </label>
                   <div className="relative">
                     <CalendarBlank weight="duotone" className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
@@ -231,19 +225,19 @@ function CheckoutForm() {
                       type="text"
                       value={expiry}
                       onChange={(e) => setExpiry(formatExpiry(e.target.value))}
-                      placeholder="MM/YY"
+                      placeholder={t("checkout_expiry_placeholder")}
                       required
                       className="w-full h-12 pl-12 pr-4 rounded-xl bg-[#0B0E11] border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm font-mono"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-white/70 mb-1.5">CVV</label>
+                  <label className="block text-sm font-medium text-white/70 mb-1.5">{t("checkout_cvv")}</label>
                   <input
                     type="text"
                     value={cvv}
                     onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                    placeholder="123"
+                    placeholder={t("checkout_cvv_placeholder")}
                     required
                     className="w-full h-12 px-4 rounded-xl bg-[#0B0E11] border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm font-mono"
                   />
@@ -257,7 +251,7 @@ function CheckoutForm() {
                 className="w-full h-14 rounded-full bg-emerald-500 text-white font-semibold text-base flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 transition-all mt-2"
               >
                 <Lock weight="bold" className="w-5 h-5" />
-                {language === "fr" ? `Payer $${displayPrice}/mo` : language === "es" ? `Pagar $${displayPrice}/mo` : `Pay $${displayPrice}/mo`}
+                {t("checkout_pay")} ${displayPrice}/mo
               </motion.button>
             </form>
           </div>

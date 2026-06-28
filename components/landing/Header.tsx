@@ -15,24 +15,6 @@ const LANGUAGES: { code: Language; label: string; flag: string }[] = [
   { code: "es", label: "Español", flag: "🇪🇸" },
 ]
 
-const SOLUTIONS = [
-  { icon: PresentationChart, label: "Executive Dashboard", href: "#showcase", desc: "Live financials & KPIs" },
-  { icon: FolderOpen, label: "Inventory & BOM", href: "#features", desc: "Materials & routing" },
-  { icon: DeviceTablet, label: "Operator Tablet", href: "#features", desc: "Factory floor interface" },
-  { icon: ShieldCheck, label: "Quality Gates", href: "#products", desc: "QC checkpoints" },
-]
-
-const RESOURCES = [
-  { icon: Article, label: "Blog", href: "#", desc: "Articles & updates" },
-  { icon: BookOpenText, label: "Documentation", href: "#", desc: "Guides & API" },
-  { icon: Headset, label: "Support", href: "#", desc: "Help center" },
-]
-
-const COMPANY = [
-  { icon: Info, label: "About", href: "#", desc: "Our mission" },
-  { icon: Envelope, label: "Contact", href: "#", desc: "Get in touch" },
-]
-
 export function Header() {
   const [imageError, setImageError] = useState(false)
   const [langOpen, setLangOpen] = useState(false)
@@ -58,6 +40,24 @@ export function Header() {
   }, [])
 
   const currentLang = LANGUAGES.find(l => l.code === language) ?? LANGUAGES[0]
+
+  const SOLUTIONS = [
+    { icon: PresentationChart, label: t("header_solution_dash"), href: "#showcase", desc: t("header_solution_dash_desc") },
+    { icon: FolderOpen, label: t("header_solution_inv"), href: "#features", desc: t("header_solution_inv_desc") },
+    { icon: DeviceTablet, label: t("header_solution_tablet"), href: "#features", desc: t("header_solution_tablet_desc") },
+    { icon: ShieldCheck, label: t("header_solution_gates"), href: "#products", desc: t("header_solution_gates_desc") },
+  ]
+
+  const RESOURCES = [
+    { icon: Article, label: t("header_resource_blog"), href: "#", desc: t("header_resource_blog_desc") },
+    { icon: BookOpenText, label: t("header_resource_docs"), href: "#", desc: t("header_resource_docs_desc") },
+    { icon: Headset, label: t("header_resource_support"), href: "#", desc: t("header_resource_support_desc") },
+  ]
+
+  const COMPANY = [
+    { icon: Info, label: t("header_company_about"), href: "#", desc: t("header_company_about_desc") },
+    { icon: Envelope, label: t("header_company_contact"), href: "#", desc: t("header_company_contact_desc") },
+  ]
 
   return (
     <div className="relative">

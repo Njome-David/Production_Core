@@ -9,7 +9,7 @@ import Link from "next/link"
 import type { DictionaryKeys } from "@/lib/i18n/dictionary"
 
 function DemoPageContent() {
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
   const [submitted, setSubmitted] = useState(false)
   const [form, setForm] = useState({
     company: "",
@@ -138,7 +138,7 @@ function DemoPageContent() {
                       onChange={handleChange}
                       required
                       className="w-full h-12 px-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm"
-                      placeholder="+237 6XX XXX XXX"
+                      placeholder={t("demo_phone_placeholder")}
                     />
                   </div>
                 </div>
@@ -177,7 +177,7 @@ function DemoPageContent() {
                     onChange={handleChange}
                     rows={3}
                     className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm resize-none"
-                    placeholder={language === "fr" ? "Décrivez vos besoins de production..." : language === "es" ? "Describa sus necesidades de producción..." : "Describe your production needs..."}
+                    placeholder={t("demo_message_placeholder")}
                   />
                 </div>
 
@@ -220,10 +220,10 @@ function DemoPageContent() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-white">
-                      {language === "fr" ? "Visio personnalisée" : language === "es" ? "Videollamada personalizada" : "Personalized video call"}
+                      {t("demo_video_title")}
                     </p>
                     <p className="text-xs text-white/40">
-                      {language === "fr" ? "Démonstration adaptée à vos besoins" : language === "es" ? "Demostración adaptada a sus necesidades" : "Tailored demo for your workflow"}
+                      {t("demo_video_desc")}
                     </p>
                   </div>
                 </div>
@@ -234,10 +234,10 @@ function DemoPageContent() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-white">
-                      {language === "fr" ? "Sous 24h" : language === "es" ? "Dentro de 24h" : "Within 24 hours"}
+                      {t("demo_delay_title")}
                     </p>
                     <p className="text-xs text-white/40">
-                      {language === "fr" ? "Notre équipe vous recontactera rapidement" : language === "es" ? "Nuestro equipo lo contactará rápidamente" : "Our team will get back to you promptly"}
+                      {t("demo_delay_desc")}
                     </p>
                   </div>
                 </div>

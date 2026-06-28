@@ -87,7 +87,7 @@ function PricingPageContent() {
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20"
           >
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs font-mono font-bold tracking-widest text-emerald-400 uppercase">PRICING</span>
+            <span className="text-xs font-mono font-bold tracking-widest text-emerald-400 uppercase">{t("pricing_badge")}</span>
           </motion.div>
 
           <motion.h1
@@ -159,7 +159,7 @@ function PricingPageContent() {
               >
                 {plan.popular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-emerald-500 text-white text-[10px] font-mono font-bold tracking-widest rounded-full uppercase">
-                    Most Popular
+                    {t("pricing_popular")}
                   </div>
                 )}
 
@@ -227,8 +227,8 @@ function PricingPageContent() {
           className="max-w-6xl mx-auto mt-8 p-8 rounded-2xl bg-white/5 border border-white/10 flex flex-col md:flex-row items-center justify-between gap-6"
         >
           <div>
-            <h3 className="text-xl font-display font-bold text-white">Need a custom plan?</h3>
-            <p className="text-sm text-white/40 mt-1">Contact our sales team for tailored pricing for your organization.</p>
+            <h3 className="text-xl font-display font-bold text-white">{t("pricing_enterprise_cta_title")}</h3>
+            <p className="text-sm text-white/40 mt-1">{t("pricing_enterprise_cta_desc")}</p>
           </div>
           <Link href="/login">
             <motion.button
