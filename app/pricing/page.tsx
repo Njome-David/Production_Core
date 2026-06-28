@@ -183,7 +183,7 @@ function PricingPageContent() {
                   )}
                 </div>
 
-                <Link href={isFree ? "/demo" : "/login"}>
+                <Link href={isFree ? "/demo" : `/checkout?plan=${plan.key}${annual ? "&annual=true" : ""}`}>
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
