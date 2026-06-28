@@ -60,6 +60,7 @@ export function Header() {
   const currentLang = LANGUAGES.find(l => l.code === language) ?? LANGUAGES[0]
 
   return (
+    <div className="relative">
     <motion.header
       initial={{ y: -100 }}
       animate={{ y: 0 }}
@@ -288,49 +289,50 @@ export function Header() {
           {mobileOpen ? <X weight="bold" className="w-5 h-5" /> : <List weight="bold" className="w-5 h-5" />}
         </button>
       </div>
-
-      {/* Mobile Menu */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="fixed top-20 left-0 right-0 bottom-0 bg-[#0B0E11] border-t border-white/10 lg:hidden z-50 overflow-y-auto"
-          >
-            <div className="p-6 flex flex-col gap-1">
-              <Link href="/#showcase" onClick={() => setMobileOpen(false)} className="w-full text-left px-4 py-3 rounded-xl text-white/80 hover:text-white hover:bg-white/5 transition-all font-medium block">{t("header_why")}</Link>
-              <div className="px-4 py-3 text-white/40 text-xs font-mono tracking-widest uppercase">{t("header_solutions")}</div>
-              {SOLUTIONS.map((s, i) => (
-                <Link key={i} href={"/" + s.href} onClick={() => setMobileOpen(false)} className="w-full text-left px-4 py-3 rounded-xl text-white/70 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3 text-sm">
-                  <s.icon weight="duotone" className="w-4 h-4 text-white/40" /> {s.label}
-                </Link>
-              ))}
-              <Link href="/#features" onClick={() => setMobileOpen(false)} className="w-full text-left px-4 py-3 rounded-xl text-white/80 hover:text-white hover:bg-white/5 transition-all font-medium mt-2 block">{t("header_features")}</Link>
-              <Link href="/pricing" onClick={() => setMobileOpen(false)} className="w-full text-left px-4 py-3 rounded-xl text-white/80 hover:text-white hover:bg-white/5 transition-all font-medium block">{t("header_pricing")}</Link>
-              <div className="px-4 py-3 text-white/40 text-xs font-mono tracking-widest uppercase mt-2">{t("header_resources")}</div>
-              {RESOURCES.map((r, i) => (
-                <Link key={i} href={r.href} className="w-full text-left px-4 py-3 rounded-xl text-white/70 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3 text-sm"
-                onClick={() => setMobileOpen(false)}>
-                  <r.icon weight="duotone" className="w-4 h-4 text-white/40" /> {r.label}
-                </Link>
-              ))}
-              <div className="px-4 py-3 text-white/40 text-xs font-mono tracking-widest uppercase mt-2">{t("header_company")}</div>
-              {COMPANY.map((c, i) => (
-                <Link key={i} href={c.href} className="w-full text-left px-4 py-3 rounded-xl text-white/70 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3 text-sm"
-                onClick={() => setMobileOpen(false)}>
-                  <c.icon weight="duotone" className="w-4 h-4 text-white/40" /> {c.label}
-                </Link>
-              ))}
-              <div className="mt-6 flex flex-col gap-3 px-2">
-                <Link href="/login" onClick={() => setMobileOpen(false)}>
-                  <button className="w-full h-12 bg-white text-[#0B0E11] font-semibold rounded-full">{t("header_signIn")}</button>
-                </Link>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </motion.header>
-  )
+
+    {/* Mobile Menu (outside header to avoid transform stacking context breaking position:fixed) */}
+    <AnimatePresence>
+      {mobileOpen && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="fixed top-20 left-0 right-0 bottom-0 bg-[#0B0E11] border-t border-white/10 lg:hidden z-50 overflow-y-auto"
+        >
+          <div className="p-6 flex flex-col gap-1">
+            <Link href="/#showcase" onClick={() => setMobileOpen(false)} className="w-full text-left px-4 py-3 rounded-xl text-white/80 hover:text-white hover:bg-white/5 transition-all font-medium block">{t("header_why")}</Link>
+            <div className="px-4 py-3 text-white/40 text-xs font-mono tracking-widest uppercase">{t("header_solutions")}</div>
+            {SOLUTIONS.map((s, i) => (
+              <Link key={i} href={"/" + s.href} onClick={() => setMobileOpen(false)} className="w-full text-left px-4 py-3 rounded-xl text-white/70 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3 text-sm">
+                <s.icon weight="duotone" className="w-4 h-4 text-white/40" /> {s.label}
+              </Link>
+            ))}
+            <Link href="/#features" onClick={() => setMobileOpen(false)} className="w-full text-left px-4 py-3 rounded-xl text-white/80 hover:text-white hover:bg-white/5 transition-all font-medium mt-2 block">{t("header_features")}</Link>
+            <Link href="/pricing" onClick={() => setMobileOpen(false)} className="w-full text-left px-4 py-3 rounded-xl text-white/80 hover:text-white hover:bg-white/5 transition-all font-medium block">{t("header_pricing")}</Link>
+            <div className="px-4 py-3 text-white/40 text-xs font-mono tracking-widest uppercase mt-2">{t("header_resources")}</div>
+            {RESOURCES.map((r, i) => (
+              <Link key={i} href={r.href} className="w-full text-left px-4 py-3 rounded-xl text-white/70 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3 text-sm"
+              onClick={() => setMobileOpen(false)}>
+                <r.icon weight="duotone" className="w-4 h-4 text-white/40" /> {r.label}
+              </Link>
+            ))}
+            <div className="px-4 py-3 text-white/40 text-xs font-mono tracking-widest uppercase mt-2">{t("header_company")}</div>
+            {COMPANY.map((c, i) => (
+              <Link key={i} href={c.href} className="w-full text-left px-4 py-3 rounded-xl text-white/70 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3 text-sm"
+              onClick={() => setMobileOpen(false)}>
+                <c.icon weight="duotone" className="w-4 h-4 text-white/40" /> {c.label}
+              </Link>
+            ))}
+            <div className="mt-6 flex flex-col gap-3 px-2">
+              <Link href="/login" onClick={() => setMobileOpen(false)}>
+                <button className="w-full h-12 bg-white text-[#0B0E11] font-semibold rounded-full">{t("header_signIn")}</button>
+              </Link>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  </div>
+)
 }
