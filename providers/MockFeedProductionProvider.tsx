@@ -13,6 +13,7 @@ import {
   MOStatus,
   MachineState,
   QualityGate,
+  AdditionalCost,
   INITIAL_MATERIALS, 
   INITIAL_MACHINES, 
   INITIAL_PRODUCTS, 
@@ -20,7 +21,8 @@ import {
   INITIAL_BOMS,
   INITIAL_LINES,
   INITIAL_LEDGER,
-  INITIAL_QUALITY_GATES
+  INITIAL_QUALITY_GATES,
+  INITIAL_ADDITIONAL_COSTS
 } from "@/lib/mock-db"
 
 export interface ActiveManufacturingOrder extends ManufacturingOrder {
@@ -63,6 +65,10 @@ interface MockContextState {
   addLine: (line: ProductionLine) => void
   updateLine: (id: string, updates: Partial<ProductionLine>) => void
 
+  additionalCosts: AdditionalCost[]
+  addAdditionalCost: (cost: AdditionalCost) => void
+  updateAdditionalCost: (id: string, updates: Partial<AdditionalCost>) => void
+
   
   orders: ManufacturingOrder[]
   addOrder: (order: ManufacturingOrder) => void
@@ -87,19 +93,9 @@ export function MockFeedProductionProvider({ children }: { children: ReactNode }
   const [boms, setBoms] = useState<BOM[]>(INITIAL_BOMS)
   const [orders, setOrders] = useState<ManufacturingOrder[]>(INITIAL_ORDERS)
   const [qualityGates, setQualityGates] = useState<QualityGate[]>(INITIAL_QUALITY_GATES)
+  const [additionalCosts, setAdditionalCosts] = useState<AdditionalCost[]>(INITIAL_ADDITIONAL_COSTS)
 
-  const lines = useMemo(() => {
-    return products.map(p => {
-      if (!p.routing || p.routing.length === 0) return null
-      return {
-        id: `line_${p.id}`,
-        name: `${p.name} Line`,
-        orgId: "org_alpha_feed",
-        machineIds: p.routing.map(r => r.machineId),
-        productIds: [p.id]
-      }
-    }).filter(Boolean) as ProductionLine[]
-  }, [products])
+  const [lines, setLines] = useState<ProductionLine[]>(INITIAL_LINES)
 
   const activeMOs = useMemo(() => {
     return orders.map(order => {
@@ -187,8 +183,10 @@ export function MockFeedProductionProvider({ children }: { children: ReactNode }
   const updateProduct = (id: string, updates: Partial<Product>) => setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p))
   const addBOM = (bom: BOM) => setBoms(prev => [...prev, bom])
   const updateBOM = (id: string, updates: Partial<BOM>) => setBoms(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b))
-  const addLine = (line: ProductionLine) => { console.warn("addLine is deprecated as lines are dynamic") }
-  const updateLine = (id: string, updates: Partial<ProductionLine>) => { console.warn("updateLine is deprecated as lines are dynamic") }
+  const addLine = (line: ProductionLine) => setLines(prev => [...prev, line])
+  const updateLine = (id: string, updates: Partial<ProductionLine>) => setLines(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l))
+  const addAdditionalCost = (cost: AdditionalCost) => setAdditionalCosts(prev => [...prev, cost])
+  const updateAdditionalCost = (id: string, updates: Partial<AdditionalCost>) => setAdditionalCosts(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c))
 
 
   return (
@@ -218,6 +216,9 @@ export function MockFeedProductionProvider({ children }: { children: ReactNode }
       lines,
       addLine,
       updateLine,
+      additionalCosts,
+      addAdditionalCost,
+      updateAdditionalCost,
       activeMOs,
       globalInventory,
       orders,

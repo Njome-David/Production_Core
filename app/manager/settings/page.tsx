@@ -4,11 +4,11 @@ import React, { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
 import { useLanguage } from "@/providers/LanguageProvider"
-import { Gear, Plus, Package, Factory, HardDrives, CaretRight, X, FloppyDisk, Drop, Cube, Trash, CaretUp, CaretDown, CheckSquareOffset } from "@phosphor-icons/react"
+import { Gear, Plus, Package, Factory, HardDrives, CaretRight, X, FloppyDisk, Drop, Cube, Trash, CaretUp, CaretDown, CheckSquareOffset, CurrencyDollar } from "@phosphor-icons/react"
 import { QCParameter, RoutingStep, QualityGate } from "@/lib/mock-db"
 
-type ConfigTab = "products" | "machines" | "quality_gates" | "lines"
-type ProductTab = "profile" | "routing" | "notice"
+type ConfigTab = "products" | "machines" | "quality_gates" | "lines" | "additional_costs"
+type ProductTab = "profile" | "routing" | "additional_costs" | "notice"
 
 export default function SettingsPage() {
   const { 
@@ -16,6 +16,9 @@ export default function SettingsPage() {
     machines, 
     boms, 
     materials,
+    additionalCosts,
+    addAdditionalCost,
+    updateAdditionalCost,
     updateProduct,
     addProduct,
     updateBOM,
@@ -42,6 +45,7 @@ export default function SettingsPage() {
   const [routingRows, setRoutingRows] = useState<RoutingStep[]>([])
   const [qcRows, setQcRows] = useState<QCParameter[]>([])
   const [productQualityGateRows, setProductQualityGateRows] = useState<{ sequenceAfter: number, gateId: string, timeInHours?: number }[]>([])
+  const [additionalCostsRows, setAdditionalCostsRows] = useState<{ costId: string, provisionalValue: number }[]>([])
   
   const [machineForm, setMachineForm] = useState<any>(null)
   const [qualityGateForm, setQualityGateForm] = useState<any>(null)
@@ -57,6 +61,10 @@ export default function SettingsPage() {
   const [newRoutingUsage, setNewRoutingUsage] = useState(100)
   const [newRoutingTime, setNewRoutingTime] = useState(1)
 
+  // Global additional cost modal
+  const [showAddCostModal, setShowAddCostModal] = useState(false)
+  const [newCostForm, setNewCostForm] = useState<{ name: string; estimatedValue: number }>({ name: "", estimatedValue: 0 })
+
   // Synchronize state when selection changes
   React.useEffect(() => {
     if (!selectedEntityId) return
@@ -64,13 +72,14 @@ export default function SettingsPage() {
     if (activeTab === "products") {
       const isNew = selectedEntityId === "new"
       const prod = isNew 
-        ? { id: `prod_${Date.now()}`, sku: "SKU-NEW", name: "", targetMargin: 30, finalMass: 100, assignedLineIds: [], qcParameters: [], routing: [], qualityGates: [] }
+        ? { id: `prod_${Date.now()}`, sku: "SKU-NEW", name: "", targetMargin: 30, finalMass: 100, measureUnit: "kg", assignedLineIds: [], qcParameters: [], routing: [], qualityGates: [], additionalCosts: [] }
         : products.find(p => p.id === selectedEntityId)
       
       setProductForm(prod ? { ...prod } : null)
       setRoutingRows(prod?.routing ? [...prod.routing] : [])
       setQcRows(prod?.qcParameters ? [...prod.qcParameters] : [])
       setProductQualityGateRows(prod?.qualityGates ? [...prod.qualityGates] : [])
+      setAdditionalCostsRows(prod?.additionalCosts ? [...prod.additionalCosts] : [])
       
       const bom = isNew ? null : boms.find(b => b.productId === selectedEntityId)
       setBomUnit(bom?.unit || 'kg')
@@ -105,8 +114,13 @@ export default function SettingsPage() {
   }
 
   const handleCreateNew = () => {
-    setSelectedEntityId("new")
-    setIsDrawerOpen(true)
+    if (activeTab === "additional_costs") {
+      setNewCostForm({ name: "", estimatedValue: 0 })
+      setShowAddCostModal(true)
+    } else {
+      setSelectedEntityId("new")
+      setIsDrawerOpen(true)
+    }
   }
 
   // BOM Material Row Handlers
@@ -238,15 +252,24 @@ export default function SettingsPage() {
     })
     
     const costPrice = totalMaterialsCost + totalOpCost
+    
+    // Add additional costs
+    let totalAdditional = 0
+    additionalCostsRows.forEach(ac => {
+      totalAdditional += ac.provisionalValue
+    })
+    const finalCostPrice = costPrice + totalAdditional
+    
     const margin = productForm.targetMargin || 30
-    const suggestedPrice = costPrice * (100 + margin) / 100
+    const suggestedPrice = finalCostPrice * (100 + margin) / 100
 
     const updatedProduct = {
       ...productForm,
       price: suggestedPrice,
       qcParameters: qcRows,
       routing: routingRows,
-      qualityGates: productQualityGateRows
+      qualityGates: productQualityGateRows,
+      additionalCosts: additionalCostsRows
     }
 
     const isNew = selectedEntityId === "new"
@@ -326,7 +349,13 @@ export default function SettingsPage() {
       totalOpCost += (gate?.opCostPerHour || 0) * gateHours
     }
   })
-  const currentCostPrice = totalMaterialsCost + totalOpCost
+  
+  let totalAdditionalCost = 0
+  additionalCostsRows.forEach(row => {
+    totalAdditionalCost += row.provisionalValue
+  })
+  
+  const currentCostPrice = totalMaterialsCost + totalOpCost + totalAdditionalCost
   const currentMargin = productForm?.targetMargin || 0
   const currentSuggestedPrice = currentCostPrice * (100 + currentMargin) / 100
 
@@ -430,6 +459,26 @@ export default function SettingsPage() {
         </div>
       )
     }
+    if (activeTab === "additional_costs") {
+      return (
+        <div className="flex flex-col gap-2">
+          {additionalCosts.map(cost => (
+            <div
+              key={cost.id}
+              className="flex items-center justify-between p-4 bg-card border border-border/50 rounded-xl transition-all group text-left"
+            >
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-mono text-muted-foreground uppercase">{cost.id}</span>
+                </div>
+                <p className="font-display font-bold text-foreground">{cost.name}</p>
+                <p className="text-sm text-muted-foreground mt-1">Est. Value: <span className="font-mono text-foreground font-bold">{cost.estimatedValue.toLocaleString()}</span></p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )
+    }
   }
 
   // Render Drawer/Modal Content
@@ -454,6 +503,13 @@ export default function SettingsPage() {
               className={`pb-3 px-2 text-sm font-bold border-b-2 transition-colors ${productActiveTab === 'routing' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
             >
               {t("settings_subtab_routing")}
+            </button>
+            <button 
+              type="button"
+              onClick={() => setProductActiveTab("additional_costs")}
+              className={`pb-3 px-2 text-sm font-bold border-b-2 transition-colors ${productActiveTab === 'additional_costs' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              {t("settings_subtab_additional_costs") || "Additional Costs"}
             </button>
             <button 
               type="button"
@@ -523,7 +579,7 @@ export default function SettingsPage() {
               </section>
 
               {/* Cost Summary Box */}
-              <section className="bg-primary/5 border border-primary/20 rounded-2xl p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+              <section className="bg-primary/5 border border-primary/20 rounded-2xl p-6 grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div className="flex flex-col">
                   <span className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_total_materials")}</span>
                   <span className="text-xl font-mono font-bold text-foreground">{totalMaterialsCost.toFixed(2)}</span>
@@ -531,6 +587,10 @@ export default function SettingsPage() {
                 <div className="flex flex-col">
                   <span className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_total_ops")}</span>
                   <span className="text-xl font-mono font-bold text-foreground">{totalOpCost.toFixed(2)}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_additional_costs") || "Add. Costs"}</span>
+                  <span className="text-xl font-mono font-bold text-foreground">{totalAdditionalCost.toFixed(2)}</span>
                 </div>
                 <div className="flex flex-col">
                   <span className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_cost_price")}</span>
@@ -548,7 +608,9 @@ export default function SettingsPage() {
                   <h3 className="text-sm font-display font-bold text-foreground uppercase tracking-wider">{t("settings_section_bom")}</h3>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 bg-muted/30 border border-border/50 rounded-lg px-3 py-1.5 h-[34px]">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t("settings_label_final_mass")}</label>
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase whitespace-nowrap">
+                        {t("settings_label_final_mass")} <span className="text-primary font-mono">({productForm.measureUnit || 'kg'})</span>
+                      </label>
                       <input 
                         type="number" 
                         value={bomUnit === 'kg' ? bomSumKg.toFixed(2) : (productForm.finalMass || 100)} 
@@ -558,9 +620,29 @@ export default function SettingsPage() {
                         className={`w-16 bg-transparent focus:outline-none font-mono text-xs font-bold text-right ${bomUnit === 'kg' ? 'text-muted-foreground cursor-not-allowed' : 'text-foreground'}`}
                       />
                     </div>
+                    <div className="flex items-center gap-2 bg-muted/30 border border-border/50 rounded-lg px-3 py-1.5 h-[34px]">
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase whitespace-nowrap">Unit</label>
+                      <select 
+                        value={productForm.measureUnit || "kg"} 
+                        onChange={(e) => setProductForm({ ...productForm, measureUnit: e.target.value })}
+                        className="bg-transparent focus:outline-none font-mono text-xs font-bold text-foreground appearance-none cursor-pointer"
+                      >
+                        <option value="kg">kg</option>
+                        <option value="g">g</option>
+                        <option value="mg">mg</option>
+                        <option value="tons">tons</option>
+                        <option value="L">L</option>
+                        <option value="mL">mL</option>
+                        <option value="kits">kits</option>
+                      </select>
+                    </div>
                     <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-1 border border-border/50">
-                      <button type="button" onClick={() => setBomUnit('kg')} className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${bomUnit === 'kg' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{t("settings_mode_kg")}</button>
-                      <button type="button" onClick={() => setBomUnit('pct')} className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${bomUnit === 'pct' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{t("settings_mode_pct")}</button>
+                      <button type="button" onClick={() => setBomUnit('kg')} className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${bomUnit === 'kg' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+                        {(productForm.measureUnit || 'kg').toUpperCase()} {t("settings_mode_qty")}
+                      </button>
+                      <button type="button" onClick={() => setBomUnit('pct')} className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${bomUnit === 'pct' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+                        {t("settings_mode_pct")}
+                      </button>
                     </div>
                     <button 
                       type="button" 
@@ -575,7 +657,9 @@ export default function SettingsPage() {
                 <div className="border border-border/50 rounded-xl overflow-hidden">
                   <div className="grid grid-cols-12 gap-2 bg-muted/30 p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">
                     <div className="col-span-4">{t("settings_th_material")}</div>
-                    <div className="col-span-3 text-right">{t("settings_th_qty")}</div>
+                    <div className="col-span-3 text-right">
+                      {bomUnit === 'pct' ? `% ${t("settings_th_qty")}` : `${productForm.measureUnit || 'kg'} ${t("settings_th_qty")}`}
+                    </div>
                     <div className="col-span-2 text-right">{t("settings_th_unit_price")}</div>
                     <div className="col-span-2 text-right">{t("settings_th_cost_price")}</div>
                     <div className="col-span-1 text-right"></div>
@@ -601,7 +685,7 @@ export default function SettingsPage() {
                               onChange={(e) => handleUpdateMaterialRowQty(idx, parseFloat(e.target.value) || 0)}
                               className="w-20 px-2 py-1.5 bg-background border border-border rounded text-right font-mono text-sm text-foreground" 
                             />
-                            <span className="text-xs font-bold text-muted-foreground">{bomUnit === 'pct' ? '%' : 'Kg'}</span>
+                            <span className="text-xs font-bold text-muted-foreground">{bomUnit === 'pct' ? '%' : (productForm.measureUnit || 'kg')}</span>
                           </div>
                           <div className="col-span-2 text-right font-mono text-muted-foreground">
                             {unitPrice.toFixed(2)}
@@ -790,6 +874,74 @@ export default function SettingsPage() {
                 </div>
               </section>
 
+            </div>
+          )}
+          
+          {productActiveTab === "additional_costs" && (
+            <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <section className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-display font-bold text-foreground uppercase tracking-wider">{t("settings_subtab_additional_costs") || "Additional Costs"}</h3>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      if (additionalCosts.length > 0) {
+                        setAdditionalCostsRows(prev => [...prev, { costId: additionalCosts[0].id, provisionalValue: additionalCosts[0].estimatedValue }])
+                      }
+                    }}
+                    className="text-xs text-primary hover:text-primary/80 font-bold transition-colors flex items-center gap-1"
+                  >
+                    <Plus weight="bold"/> {t("settings_btn_add_cost") || "Add Cost"}
+                  </button>
+                </div>
+                
+                <div className="border border-border/50 rounded-xl overflow-hidden">
+                  <div className="grid grid-cols-12 gap-2 bg-muted/30 p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    <div className="col-span-6">Cost Name</div>
+                    <div className="col-span-4 text-right">Provisional Value</div>
+                    <div className="col-span-2 text-right">Actions</div>
+                  </div>
+                  <div className="divide-y divide-border/50">
+                    {additionalCostsRows.map((row, idx) => {
+                      const costItem = additionalCosts.find(c => c.id === row.costId)
+                      return (
+                        <div key={idx} className="grid grid-cols-12 gap-2 p-4 text-sm items-center bg-card">
+                          <div className="col-span-6">
+                            <select 
+                              value={row.costId}
+                              onChange={(e) => {
+                                const newId = e.target.value
+                                const ac = additionalCosts.find(c => c.id === newId)
+                                setAdditionalCostsRows(prev => prev.map((r, i) => i === idx ? { ...r, costId: newId, provisionalValue: ac ? ac.estimatedValue : r.provisionalValue } : r))
+                              }}
+                              className="w-full px-3 py-1.5 bg-background border border-border rounded text-sm text-foreground appearance-none"
+                            >
+                              {additionalCosts.map(ac => (
+                                <option key={ac.id} value={ac.id}>{ac.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="col-span-4 text-right">
+                            <input 
+                              type="number"
+                              step="0.1"
+                              value={row.provisionalValue}
+                              onChange={(e) => setAdditionalCostsRows(prev => prev.map((r, i) => i === idx ? { ...r, provisionalValue: parseFloat(e.target.value) || 0 } : r))}
+                              className="w-24 px-2 py-1.5 bg-background border border-border rounded text-right font-mono text-sm text-foreground inline-block"
+                            />
+                          </div>
+                          <div className="col-span-2 flex justify-end">
+                            <button type="button" onClick={() => setAdditionalCostsRows(prev => prev.filter((_, i) => i !== idx))} className="p-1.5 text-red-400 hover:bg-red-500/20 rounded-md"><Trash className="w-4 h-4"/></button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {additionalCostsRows.length === 0 && (
+                      <div className="p-8 text-center text-sm text-muted-foreground bg-card">No additional costs assigned.</div>
+                    )}
+                  </div>
+                </div>
+              </section>
             </div>
           )}
 
@@ -1073,6 +1225,13 @@ export default function SettingsPage() {
             >
               <Factory className="w-5 h-5" />
               {t("settings_tab_lines")}
+            </button>
+            <button 
+              onClick={() => { setActiveTab("additional_costs"); setIsDrawerOpen(false) }}
+              className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'additional_costs' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              <CurrencyDollar className="w-5 h-5" />
+              {t("settings_subtab_additional_costs") || "Additional Costs"}
             </button>
           </div>
 
@@ -1372,6 +1531,91 @@ export default function SettingsPage() {
                 >
                   {t("settings_btn_assign_gate")}
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Global Additional Cost Creation Modal */}
+      <AnimatePresence>
+        {showAddCostModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto"
+              onClick={() => setShowAddCostModal(false)}
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className="relative w-full max-w-[420px] bg-card border border-border rounded-2xl shadow-2xl flex flex-col pointer-events-auto z-50 overflow-hidden"
+            >
+              <div className="p-8 flex flex-col gap-6">
+                <div className="flex justify-between items-start">
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <CurrencyDollar className="w-6 h-6 text-primary" weight="duotone" />
+                  </div>
+                  <button
+                    onClick={() => setShowAddCostModal(false)}
+                    className="p-2 text-muted-foreground hover:bg-muted hover:text-foreground rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div>
+                  <h2 className="text-xl font-display font-bold text-foreground tracking-tight mb-1">{t("settings_subtab_additional_costs") || "Additional Costs"}</h2>
+                  <p className="text-sm text-muted-foreground">{t("settings_label_additional_costs") || "Define a global additional cost applicable to products."}</p>
+                </div>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    if (!newCostForm.name) return
+                    addAdditionalCost({
+                      id: `add_cost_${Date.now()}`,
+                      name: newCostForm.name,
+                      estimatedValue: newCostForm.estimatedValue
+                    })
+                    setShowAddCostModal(false)
+                    setNewCostForm({ name: "", estimatedValue: 0 })
+                  }}
+                  className="flex flex-col gap-4"
+                >
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{t("settings_label_name")}</label>
+                    <input
+                      type="text"
+                      required
+                      value={newCostForm.name}
+                      onChange={(e) => setNewCostForm({ ...newCostForm, name: e.target.value })}
+                      placeholder="e.g. Frais de Livraison"
+                      className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{t("settings_label_total_ops") || "Estimated Unit Value"}</label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      step="0.01"
+                      value={newCostForm.estimatedValue}
+                      onChange={(e) => setNewCostForm({ ...newCostForm, estimatedValue: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full mt-2 py-3.5 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-all text-sm flex justify-center items-center gap-2"
+                  >
+                    <Plus weight="bold" className="w-4 h-4" />
+                    {t("settings_btn_add_cost") || "Add Cost"}
+                  </button>
+                </form>
               </div>
             </motion.div>
           </div>

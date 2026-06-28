@@ -12,9 +12,13 @@ interface DrawerProps {
 }
 
 export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
-  const { activeMOs, setMOStatus, materials, activeUnit, products, machines, lines, boms } = useMockData()
+  const { activeMOs, setMOStatus, materials, activeUnit, products, machines, lines, boms, qualityGates, additionalCosts, recordInventoryTransaction } = useMockData()
   const mo = activeMOs.find(m => m.id === moId)
   const { t } = useLanguage()
+
+  const [showFinalizeForm, setShowFinalizeForm] = useState(false)
+  const [actualCosts, setActualCosts] = useState<Record<string, number>>({})
+
   
   // Close on Escape
   useEffect(() => {
@@ -29,8 +33,6 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
 
   // Financial calculations
   const product = products.find(p => p.id === mo.productId)
-  const targetPrice = product?.price || 12000 // default selling price: 12000 FCFA per batch
-  const estimatedRevenue = mo.targetQty * targetPrice
 
   // Materials cost
   const bom = boms.find(b => b.productId === mo.productId)
@@ -45,20 +47,60 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
   const machineMaintenanceCost = productionLine?.machineIds.reduce((acc, machineId) => {
     const machine = machines.find(m => m.id === machineId)
     if (!machine) return acc
-    // batches / operationRate = hours. Then hours * maintenanceCostPerHour
     const hours = mo.targetQty / (machine.operationRate || 10)
     const cost = hours * (machine.maintenanceCostPerHour || 1500)
     return acc + cost
   }, 0) || 0
 
+  // QC Cost
+  const qcCost = product?.qualityGates?.reduce((acc, gateEntry) => {
+    const gate = qualityGates.find(g => g.id === gateEntry.gateId)
+    const hours = gateEntry.timeInHours || 0.25
+    // CORRECTION: Multiplication par mo.targetQty
+    return acc + (gate?.opCostPerHour || 0) * hours * mo.targetQty
+  }, 0) || 0
+
+  // Additional Costs
+  // CORRECTION: Multiplication par mo.targetQty
+  const provisionalAdditionalCost = product?.additionalCosts?.reduce((acc, cost) => {
+    return acc + cost.provisionalValue * mo.targetQty
+  }, 0) || 0
+
   const fixedLaunchCost = 5000 // 5000 FCFA
-  const estimatedCost = fixedLaunchCost + materialsCost + machineMaintenanceCost
+  const estimatedCost = fixedLaunchCost + materialsCost + machineMaintenanceCost + qcCost + provisionalAdditionalCost
+  
+  const targetMargin = product?.targetMargin || 20
+  const suggestedSellingPrice = estimatedCost * (1 + targetMargin / 100)
+  
+  const estimatedRevenue = mo.targetQty * suggestedSellingPrice
+  
   const grossMargin = estimatedRevenue - estimatedCost
   const marginPercentage = estimatedRevenue > 0 ? (grossMargin / estimatedRevenue) * 100 : 0
 
   const handleRelease = () => {
     // Optimistically update status to 'In Progress' for mock purposes
     setMOStatus(mo.id, "IN_PROGRESS")
+  }
+
+  const handleFinalize = (e: React.FormEvent) => {
+    e.preventDefault()
+    // Find the MO in activeMOs (we already have it as 'mo')
+    // We would update it with actualAdditionalCosts
+    mo.actualAdditionalCosts = actualCosts
+    setMOStatus(mo.id, "FINAL")
+    setShowFinalizeForm(false)
+  }
+
+  // Pre-fill actual costs with provisional values when opening the form
+  const handleOpenFinalize = () => {
+    const initial: Record<string, number> = {}
+    if (product?.additionalCosts) {
+      product.additionalCosts.forEach(ac => {
+        initial[ac.costId] = ac.provisionalValue
+      })
+    }
+    setActualCosts(initial)
+    setShowFinalizeForm(true)
   }
 
   return (
@@ -90,6 +132,7 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
                 {mo.status === "PENDING" && <><Clock className="w-3.5 h-3.5 text-muted-foreground" /><span className="text-muted-foreground">{t("drawer_status_pending")}</span></>}
                 {mo.status === "IN_PROGRESS" && <><Play className="w-3.5 h-3.5 text-amber-500" weight="fill" /><span className="text-amber-600">{t("drawer_status_inprogress")}</span></>}
                 {mo.status === "COMPLETED" && <><CheckCircle className="w-3.5 h-3.5 text-emerald-500" weight="fill" /><span className="text-emerald-600">{t("drawer_status_completed")}</span></>}
+                {mo.status === "FINAL" && <><CheckCircle className="w-3.5 h-3.5 text-blue-500" weight="fill" /><span className="text-blue-600">FINAL</span></>}
               </div>
             </div>
             <p className="text-muted-foreground text-sm font-medium">{mo.productName}</p>
@@ -122,7 +165,7 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
                 <span className="text-xl font-display text-foreground font-bold">{mo.routing}</span>
               </div>
               
-              {mo.status === "COMPLETED" && (
+              {(mo.status === "COMPLETED" || mo.status === "FINAL") && (
                 <div className="p-4 rounded-xl border border-border/50 bg-background/50 flex flex-col gap-1 col-span-2">
                   <span className="text-sm text-muted-foreground flex items-center gap-1.5 font-semibold">
                     <CheckCircle className="text-emerald-500 w-4 h-4" weight="fill" />
@@ -139,6 +182,48 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
             </div>
           </section>
 
+          {/* Actual Costs Form for FINAL state */}
+          {showFinalizeForm && (
+            <section className="flex flex-col gap-4 p-5 border border-primary/30 bg-primary/5 rounded-2xl">
+              <div className="flex justify-between items-center">
+                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Drop className="w-4 h-4 text-primary" weight="fill" />
+                  {t("drawer_finalize_title")}
+                </h3>
+              </div>
+              <form onSubmit={handleFinalize} className="flex flex-col gap-4">
+                {product?.additionalCosts && product.additionalCosts.length > 0 ? (
+                  <div className="flex flex-col gap-3">
+                    {product.additionalCosts.map(ac => {
+                      const costDef = additionalCosts.find(c => c.id === ac.costId)
+                      const expectedCost = ac.provisionalValue * mo.targetQty
+                      return (
+                        <div key={ac.costId} className="flex flex-col gap-1">
+                          <label className="text-xs font-mono text-muted-foreground uppercase">{costDef?.name || ac.costId} ({t("drawer_finalize_prov")}: {expectedCost.toLocaleString()})</label>
+                          <input 
+                            type="number"
+                            required
+                            min="0"
+                            step="0.01"
+                            value={actualCosts[ac.costId] !== undefined ? actualCosts[ac.costId] : ''}
+                            onChange={(e) => setActualCosts({...actualCosts, [ac.costId]: parseFloat(e.target.value)})}
+                            className="px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary/50 text-foreground"
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-foreground">{t("drawer_finalize_no_costs")}</p>
+                )}
+                <div className="flex justify-end gap-2 mt-2">
+                  <button type="button" onClick={() => setShowFinalizeForm(false)} className="px-4 py-2 text-sm text-foreground hover:bg-muted rounded-lg transition-colors">{t("drawer_finalize_cancel")}</button>
+                  <button type="submit" className="px-4 py-2 text-sm bg-primary text-primary-foreground font-bold rounded-lg hover:bg-primary/90 transition-colors shadow-sm">{t("drawer_finalize_submit")}</button>
+                </div>
+              </form>
+            </section>
+          )}
+
           {/* Estimated Financials */}
           <section className="flex flex-col gap-4">
             <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">{t("drawer_financials")}</h3>
@@ -151,7 +236,7 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
                 <span className="text-[9px] text-muted-foreground leading-tight">{t("drawer_cost_breakdown")}</span>
               </div>
               <div className="p-4 rounded-xl border border-border/50 bg-background/50 flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground font-semibold">{t("drawer_est_revenue")}</span>
+                <span className="text-xs text-muted-foreground font-semibold">{mo.status === 'FINAL' ? 'Actual Revenue' : t("drawer_est_revenue")}</span>
                 <span className="text-lg text-emerald-500 font-display font-bold">
                   {Math.round(estimatedRevenue).toLocaleString()} <span className="text-[10px] font-normal text-muted-foreground">{t("drawer_currency")}</span>
                 </span>
@@ -165,6 +250,27 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
                 <span className="text-[9px] text-muted-foreground font-mono leading-tight">({marginPercentage.toFixed(1)}% {t("drawer_yield")})</span>
               </div>
             </div>
+            
+            {mo.status === 'FINAL' && (
+              <div className="mt-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl flex flex-col gap-1">
+                <span className="text-xs font-mono font-bold text-blue-600 uppercase">{t("drawer_financials")} — FINAL</span>
+                {mo.actualAdditionalCosts && Object.keys(mo.actualAdditionalCosts).length > 0 ? (
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    {Object.entries(mo.actualAdditionalCosts).map(([costId, value]) => {
+                      const costDef = additionalCosts.find(c => c.id === costId)
+                      return (
+                        <div key={costId} className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">{costDef?.name || costId}</span>
+                          <span className="font-mono font-medium text-foreground">{value.toLocaleString()} {t("drawer_currency")}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <span className="text-sm text-muted-foreground">{t("drawer_finalize_no_costs")}</span>
+                )}
+              </div>
+            )}
           </section>
 
           {/* Bill of Materials */}
@@ -231,6 +337,26 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
             >
               <Play className="w-4 h-4" />
               {t("drawer_badge_inprogress")}
+            </button>
+          )}
+
+          {mo.status === "COMPLETED" && !showFinalizeForm && (
+            <button 
+              onClick={handleOpenFinalize}
+              className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-[0_4px_14px_0_rgba(37,99,235,0.39)]"
+            >
+              <Drop className="w-4 h-4" />
+              {t("drawer_finalize_title")}
+            </button>
+          )}
+
+          {mo.status === "FINAL" && (
+            <button 
+              disabled
+              className="px-6 py-2 bg-muted/50 text-muted-foreground text-sm font-medium rounded-md cursor-not-allowed flex items-center gap-2 border border-border/50"
+            >
+              <CheckCircle className="w-4 h-4" weight="fill" />
+              FINAL
             </button>
           )}
         </div>

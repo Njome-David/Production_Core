@@ -39,7 +39,14 @@ export default function OperatorTabletPage() {
   const stationMOs = isGateStation
     ? activeMOs.filter(mo => mo.currentGateId === activeSession?.active_station)
     : activeMOs.filter(mo => mo.machineId === activeSession?.active_station)
-  const currentMO = stationMOs.find(mo => mo.status === "IN_PROGRESS") || stationMOs.find(mo => mo.status === "PENDING")
+  
+  const currentMO = stationMOs.find(mo => mo.status === "IN_PROGRESS") || 
+    stationMOs.filter(mo => mo.status === "PENDING").sort((a, b) => {
+      if (a.programmedDate && b.programmedDate) return new Date(a.programmedDate).getTime() - new Date(b.programmedDate).getTime()
+      if (a.programmedDate) return -1
+      if (b.programmedDate) return 1
+      return a.id.localeCompare(b.id)
+    })[0]
 
   // Compute total duration for countdown based on current station
   const product = currentMO ? products.find(p => p.id === currentMO.productId) : null

@@ -9,7 +9,7 @@ import { useLanguage } from "@/providers/LanguageProvider"
 
 export default function InsightsPage() {
   const { t } = useLanguage()
-  const { inventoryLedger, activeMOs, materials, products } = useMockData()
+  const { inventoryLedger, activeMOs, materials, products, lines, machines, qualityGates } = useMockData()
 
   // Calculate Insights
   const insights = useMemo(() => {
@@ -17,37 +17,81 @@ export default function InsightsPage() {
       .filter(l => l.type === "REFILL")
       .reduce((sum, l) => sum + l.totalValue, 0)
       
-    const completedOrders = activeMOs.filter(mo => mo.status === "COMPLETED")
+    const finalOrders = activeMOs.filter(mo => mo.status === "FINAL")
     
-    // Estimate cost of completed orders
-    const estimatedCostOfGoods = completedOrders.reduce((sum, mo) => {
-      const bom = mo.bom
-      if (!bom) return sum
-      const materialCosts = bom.lines.reduce((matSum, line) => {
-        const material = materials.find(m => m.id === line.materialId)
-        if (!material) return matSum
-        return matSum + (line.quantityPerUnit * mo.targetQty * material.costAvg)
-      }, 0)
-      return sum + materialCosts
-    }, 0)
-    
-    // Estimated revenue
-    const estimatedRevenue = completedOrders.reduce((sum, mo) => {
-      const product = products.find(p => p.id === mo.productId)
-      if (!product) return sum
-      return sum + (product.price * mo.targetQty)
-    }, 0)
+    // Calculate cost and revenue of final orders
+    let actualCostOfGoods = 0
+    let actualRevenue = 0
 
-    const grossMargin = estimatedRevenue - estimatedCostOfGoods
+    finalOrders.forEach(mo => {
+      const product = products.find(p => p.id === mo.productId)
+      if (!product) return
+
+      // Base Materials Cost
+      const bom = mo.bom
+      let materialsCost = 0
+      if (bom) {
+        materialsCost = bom.lines.reduce((matSum, line) => {
+          const material = materials.find(m => m.id === line.materialId)
+          return matSum + (material ? line.quantityPerUnit * mo.targetQty * material.costAvg : 0)
+        }, 0)
+      }
+
+      // Machine maintenance cost
+      const productionLine = lines.find(l => l.id === mo.lineId)
+      const machineMaintenanceCost = productionLine?.machineIds.reduce((acc, machineId) => {
+        const machine = machines.find(m => m.id === machineId)
+        if (!machine) return acc
+        const hours = mo.targetQty / (machine.operationRate || 10)
+        const cost = hours * (machine.maintenanceCostPerHour || 1500)
+        return acc + cost
+      }, 0) || 0
+
+      // QC Cost
+      const qcCost = product?.qualityGates?.reduce((acc, gateEntry) => {
+        const gate = qualityGates.find(g => g.id === gateEntry.gateId)
+        const hours = gateEntry.timeInHours || 0.25
+        // CORRECTION: Multiplication par mo.targetQty
+        return acc + (gate?.opCostPerHour || 0) * hours * mo.targetQty
+      }, 0) || 0
+
+      // Additional Costs
+      const provisionalAdditionalCost = product?.additionalCosts?.reduce((acc, cost) => {
+        // CORRECTION: Multiplication par mo.targetQty
+        return acc + cost.provisionalValue * mo.targetQty
+      }, 0) || 0
+      const fixedLaunchCost = 5000 // 5000 FCFA
+
+      // Estimated Cost (for calculating the selling price that was quoted to the customer)
+      const estTotalCost = fixedLaunchCost + materialsCost + machineMaintenanceCost + qcCost + provisionalAdditionalCost
+      const targetMargin = product.targetMargin || 20
+      const suggestedSellingPrice = estTotalCost * (1 + targetMargin / 100)
+
+      // Actual Additional Costs
+      let actualAddlCost = 0
+      if (mo.actualAdditionalCosts) {
+         actualAddlCost = Object.values(mo.actualAdditionalCosts).reduce((a, b) => a + b, 0)
+      } else {
+         actualAddlCost = provisionalAdditionalCost
+      }
+
+      const totalActualCost = fixedLaunchCost + materialsCost + machineMaintenanceCost + qcCost + actualAddlCost
+
+      actualCostOfGoods += totalActualCost
+      // For revenue, it assumes the price sold is the suggested price derived from estimate
+      actualRevenue += (mo.targetQty * suggestedSellingPrice)
+    })
+
+    const grossMargin = actualRevenue - actualCostOfGoods
 
     return {
       totalRefillCost,
-      completedOrdersCount: completedOrders.length,
-      estimatedCostOfGoods,
-      estimatedRevenue,
+      finalOrdersCount: finalOrders.length,
+      actualCostOfGoods,
+      actualRevenue,
       grossMargin
     }
-  }, [inventoryLedger, activeMOs, materials, products])
+  }, [inventoryLedger, activeMOs, materials, products, lines, machines, qualityGates])
 
   const perProductInsights = useMemo(() => {
     const productStats: Record<string, { name: string, totalProduced: number, revenue: number, cost: number }> = {}
@@ -56,26 +100,64 @@ export default function InsightsPage() {
       productStats[p.id] = { name: p.name, totalProduced: 0, revenue: 0, cost: 0 }
     })
     
-    activeMOs.filter(mo => mo.status === "COMPLETED").forEach(mo => {
-      if (productStats[mo.productId]) {
-        productStats[mo.productId].totalProduced += mo.targetQty
-        
-        // Revenue
-        const product = products.find(p => p.id === mo.productId)
-        if (product) {
-          productStats[mo.productId].revenue += product.price * mo.targetQty
-        }
-        
-        // Cost
-        const bom = mo.bom
-        if (bom) {
-          const matCost = bom.lines.reduce((sum, line) => {
-            const mat = materials.find(m => m.id === line.materialId)
-            return sum + (mat ? line.quantityPerUnit * mo.targetQty * mat.costAvg : 0)
-          }, 0)
-          productStats[mo.productId].cost += matCost
-        }
+    activeMOs.filter(mo => mo.status === "FINAL").forEach(mo => {
+      const product = products.find(p => p.id === mo.productId)
+      if (!product || !productStats[mo.productId]) return
+
+      productStats[mo.productId].totalProduced += mo.targetQty
+      
+      // Cost
+      const bom = mo.bom
+      let materialsCost = 0
+      if (bom) {
+        materialsCost = bom.lines.reduce((matSum, line) => {
+          const material = materials.find(m => m.id === line.materialId)
+          return matSum + (material ? line.quantityPerUnit * mo.targetQty * material.costAvg : 0)
+        }, 0)
       }
+
+      // Machine maintenance cost
+      const productionLine = lines.find(l => l.id === mo.lineId)
+      const machineMaintenanceCost = productionLine?.machineIds.reduce((acc, machineId) => {
+        const machine = machines.find(m => m.id === machineId)
+        if (!machine) return acc
+        const hours = mo.targetQty / (machine.operationRate || 10)
+        const cost = hours * (machine.maintenanceCostPerHour || 1500)
+        return acc + cost
+      }, 0) || 0
+
+      // QC Cost
+      const qcCost = product?.qualityGates?.reduce((acc, gateEntry) => {
+        const gate = qualityGates.find(g => g.id === gateEntry.gateId)
+        const hours = gateEntry.timeInHours || 0.25
+        // CORRECTION: Multiplication par mo.targetQty
+        return acc + (gate?.opCostPerHour || 0) * hours * mo.targetQty
+      }, 0) || 0
+
+      // Additional Costs
+      const provisionalAdditionalCost = product?.additionalCosts?.reduce((acc, cost) => {
+        // CORRECTION: Multiplication par mo.targetQty
+        return acc + cost.provisionalValue * mo.targetQty
+      }, 0) || 0
+      const fixedLaunchCost = 5000 // 5000 FCFA
+
+      // Estimated Cost for price
+      const estTotalCost = fixedLaunchCost + materialsCost + machineMaintenanceCost + qcCost + provisionalAdditionalCost
+      const targetMargin = product.targetMargin || 20
+      const suggestedSellingPrice = estTotalCost * (1 + targetMargin / 100)
+
+      // Actual Additional Costs
+      let actualAddlCost = 0
+      if (mo.actualAdditionalCosts) {
+         actualAddlCost = Object.values(mo.actualAdditionalCosts).reduce((a, b) => a + b, 0)
+      } else {
+         actualAddlCost = provisionalAdditionalCost
+      }
+
+      const totalActualCost = fixedLaunchCost + materialsCost + machineMaintenanceCost + qcCost + actualAddlCost
+
+      productStats[mo.productId].cost += totalActualCost
+      productStats[mo.productId].revenue += (mo.targetQty * suggestedSellingPrice)
     })
     
     return Object.values(productStats).map(stat => ({
@@ -83,12 +165,12 @@ export default function InsightsPage() {
       margin: stat.revenue - stat.cost,
       marginPct: stat.revenue > 0 ? ((stat.revenue - stat.cost) / stat.revenue) * 100 : 0
     }))
-  }, [activeMOs, products, materials])
+  }, [activeMOs, products, materials, lines, machines, qualityGates])
 
   // Aggregated chart data: single waterfall view
   const aggregatedChartData = [
-    { name: 'Revenue', value: insights.estimatedRevenue, fill: '#3B82F6' },
-    { name: 'COGS', value: insights.estimatedCostOfGoods, fill: '#F59E0B' },
+    { name: 'Revenue', value: insights.actualRevenue, fill: '#3B82F6' },
+    { name: 'COGS', value: insights.actualCostOfGoods, fill: '#F59E0B' },
     { name: 'Margin', value: insights.grossMargin, fill: '#10B981' },
   ]
 
@@ -118,7 +200,7 @@ export default function InsightsPage() {
           </div>
           <span className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">{t("insights_kpi_revenue")}</span>
           <div className="flex items-end gap-2">
-            <span className="text-3xl text-foreground font-display font-bold">{insights.estimatedRevenue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} FCFA</span>
+            <span className="text-3xl text-foreground font-display font-bold">{insights.actualRevenue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} FCFA</span>
           </div>
         </div>
 
@@ -128,7 +210,7 @@ export default function InsightsPage() {
           </div>
           <span className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">{t("insights_kpi_cogs")}</span>
           <div className="flex items-end gap-2">
-            <span className="text-3xl text-foreground font-display font-bold">{insights.estimatedCostOfGoods.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} FCFA</span>
+            <span className="text-3xl text-foreground font-display font-bold">{insights.actualCostOfGoods.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} FCFA</span>
           </div>
         </div>
         
@@ -148,7 +230,7 @@ export default function InsightsPage() {
           </div>
           <span className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">{t("insights_kpi_completed")}</span>
           <div className="flex items-end gap-2">
-            <span className="text-3xl text-foreground font-display font-bold">{insights.completedOrdersCount}</span>
+            <span className="text-3xl text-foreground font-display font-bold">{insights.finalOrdersCount}</span>
           </div>
         </div>
       </motion.div>
@@ -199,7 +281,7 @@ export default function InsightsPage() {
             <ChartLineUp className="w-5 h-5 text-muted-foreground" />
           </div>
           <div className="p-6 flex-1 flex flex-col items-center justify-center min-h-[400px]">
-            {insights.completedOrdersCount > 0 ? (
+            {insights.finalOrdersCount > 0 ? (
               <ResponsiveContainer width="100%" height="100%" minHeight={350}>
                 <BarChart data={aggregatedChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />

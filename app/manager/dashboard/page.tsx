@@ -9,9 +9,13 @@ import { ManufacturingOrderDrawer } from "@/components/manager/ManufacturingOrde
 import { ManufacturingOrder } from "@/lib/mock-db"
 
 export default function ManagerDashboard() {
-  const { activeMOs, products, lines, boms, materials, machines, qualityGates, addOrder, activeUnit, setActiveUnit, recordInventoryTransaction } = useMockData()
+  const { activeMOs, products, lines, boms, materials, machines, qualityGates, addOrder, recordInventoryTransaction } = useMockData()
   const { t } = useLanguage()
   const [selectedMoId, setSelectedMoId] = useState<string | null>(null)
+  
+  const [filterProductId, setFilterProductId] = useState<string>("ALL")
+  const [filterState, setFilterState] = useState<string>("ALL")
+
   
   const [showNewMoModal, setShowNewMoModal] = useState(false)
   const [newMoProductId, setNewMoProductId] = useState("")
@@ -21,8 +25,12 @@ export default function ManagerDashboard() {
   const [materialWarnings, setMaterialWarnings] = useState<{ type: 'error' | 'warn'; materialName: string; required: number; available: number }[]>([])
   const [showMaterialWarnings, setShowMaterialWarnings] = useState(false)
 
+  // Display mode toggle: "units" shows # of batches, "qty" shows totalQty×finalMass in measureUnit
+  const [displayMode, setDisplayMode] = useState<"units" | "qty">("units")
+
   const selectedProduct = products.find(p => p.id === newMoProductId)
   const productWeight = selectedProduct?.finalMass || 1
+  const productUnit = selectedProduct?.measureUnit || "units"
 
   // Per-product mass calculation: pct mode uses finalMass, kg mode sums BOM
   const getProductMass = (productId: string): number => {
@@ -37,26 +45,38 @@ export default function ManagerDashboard() {
     return sum > 0 ? sum : 1
   }
 
-  const convertQty = (qtyInUnits: number, productId: string, toUnit: "units" | "kg" | "tons"): number => {
-    const mass = getProductMass(productId)
-    if (toUnit === "units") return qtyInUnits
-    if (toUnit === "kg") return qtyInUnits * mass
-    if (toUnit === "tons") return (qtyInUnits * mass) / 1000
-    return qtyInUnits
+  // Per-row unit helper: returns the product's measureUnit
+  const getMOUnit = (productId: string): string => {
+    const prod = products.find(p => p.id === productId)
+    return prod?.measureUnit || 'kg'
   }
 
-  const getUnitMultiplier = (u: "units" | "tons" | "kg") => {
-    if (u === "units") return 1;
-    if (u === "kg") return 1 / productWeight;
-    if (u === "tons") return 1000 / productWeight;
-    return 1;
+  // Compute volume display value depending on displayMode
+  // units mode: just targetQty (number of batches / units produced)
+  // qty mode: targetQty × product.finalMass in the product's measureUnit
+  const getMODisplayQty = (targetQty: number, productId: string): { value: string; unit: string } => {
+    const prod = products.find(p => p.id === productId)
+    if (displayMode === 'units') {
+      return { value: targetQty.toLocaleString(), unit: 'units' }
+    }
+    // qty mode
+    const finalMass = prod?.finalMass || 1
+    const total = targetQty * finalMass
+    const unit = prod?.measureUnit || 'kg'
+    return { value: total.toLocaleString(undefined, { maximumFractionDigits: 2 }), unit }
   }
-  
-  const unitFactor = getUnitMultiplier(activeUnit);
-  const unitLabel = activeUnit === "units" ? t("dash_unit_units") : activeUnit === "tons" ? t("dash_unit_tons") : t("dash_unit_kg");
 
-  // Target Qty in standard units database unit
-  const targetQtyInBatches = newMoTargetQtyInput * unitFactor;
+  // Filter MOs
+  const filteredMOs = React.useMemo(() => {
+    return activeMOs.filter(mo => {
+      if (filterProductId !== "ALL" && mo.productId !== filterProductId) return false
+      if (filterState !== "ALL" && mo.status !== filterState) return false
+      return true
+    })
+  }, [activeMOs, filterProductId, filterState])
+
+  // Target qty in modal is always in product's native unit
+  const targetQtyInBatches = newMoTargetQtyInput;
   
   // Calculate estimates
   const estRevenue = React.useMemo(() => {
@@ -95,7 +115,14 @@ export default function ManagerDashboard() {
         for (const gateEntry of product.qualityGates) {
           const gate = qualityGates.find(g => g.id === gateEntry.gateId)
           const gateHours = gateEntry.timeInHours || 0.25
-          cost += (gate?.opCostPerHour || 0) * gateHours
+          // CORRECTION: Multiplication par targetQtyInBatches
+          cost += (gate?.opCostPerHour || 0) * gateHours * targetQtyInBatches
+        }
+      }
+      // CORRECTION: Ajout des coûts supplémentaires par unité
+      if (product.additionalCosts) {
+        for (const costEntry of product.additionalCosts) {
+          cost += costEntry.provisionalValue * targetQtyInBatches
         }
       }
     }
@@ -195,7 +222,7 @@ export default function ManagerDashboard() {
     setShowNewMoModal(false)
     setNewMoProductId("")
     setNewMoLineId("")
-    setNewMoTargetQtyInput(activeUnit === "kg" ? 10 * productWeight : activeUnit === "tons" ? (10 * productWeight) / 1000 : 10)
+    setNewMoTargetQtyInput(10)
     setNewMoScheduledDate("")
   }
 
@@ -237,8 +264,19 @@ export default function ManagerDashboard() {
     setMaterialWarnings([])
     setNewMoProductId("")
     setNewMoLineId("")
-    setNewMoTargetQtyInput(activeUnit === "kg" ? 10 * productWeight : activeUnit === "tons" ? (10 * productWeight) / 1000 : 10)
+    setNewMoTargetQtyInput(10)
     setNewMoScheduledDate("")
+  }
+
+  // Handle product selection to auto-assign line
+  const handleProductChange = (productId: string) => {
+    setNewMoProductId(productId)
+    const product = products.find(p => p.id === productId)
+    if (product && product.assignedLineIds && product.assignedLineIds.length > 0) {
+      setNewMoLineId(product.assignedLineIds[0])
+    } else {
+      setNewMoLineId("")
+    }
   }
 
   return (
@@ -265,23 +303,26 @@ export default function ManagerDashboard() {
               {t("dash_btn_launch")}
             </button>
 
-            {/* Premium Unit Segmented Switcher */}
+            {/* Units / Quantity display toggle */}
             <div className="flex bg-muted/40 p-1 rounded-xl border border-border/50 w-max">
-              {(["units", "tons", "kg"] as const).map(unit => (
-                <button
-                  key={unit}
-                  type="button"
-                  onClick={() => {
-                    const oldFactor = getUnitMultiplier(activeUnit);
-                    const newFactor = getUnitMultiplier(unit);
-                    setActiveUnit(unit);
-                    setNewMoTargetQtyInput(Number(((newMoTargetQtyInput * oldFactor) / newFactor).toFixed(2)));
-                  }}
-                  className={`px-3 py-1.5 text-xs font-mono font-bold uppercase rounded-lg transition-colors ${activeUnit === unit ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-                >
-                  {unit}
-                </button>
-              ))}
+              <button
+                type="button"
+                onClick={() => setDisplayMode("units")}
+                className={`px-3 py-1.5 text-xs font-mono font-bold uppercase rounded-lg transition-colors ${
+                  displayMode === 'units' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {t("dash_display_units")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDisplayMode("qty")}
+                className={`px-3 py-1.5 text-xs font-mono font-bold uppercase rounded-lg transition-colors ${
+                  displayMode === 'qty' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {t("dash_display_qty")}
+              </button>
             </div>
           </div>
         </motion.div>
@@ -298,9 +339,9 @@ export default function ManagerDashboard() {
             <span className="text-3xl font-display font-bold text-foreground">{activeMOs.filter(mo => mo.status !== "COMPLETED").length}</span>
           </div>
           <div className="flex flex-col border border-border bg-card p-4 rounded-xl min-w-[140px]">
-            <span className="text-xs font-mono text-muted-foreground mb-1 uppercase tracking-wider">{unitLabel}{t("dash_kpi_rate")}</span>
+            <span className="text-xs font-mono text-muted-foreground mb-1 uppercase tracking-wider">{t("dash_kpi_rate")}</span>
             <span className="text-3xl font-display font-bold text-foreground">
-              {Math.round(14.2 * unitFactor).toLocaleString()}
+              {Math.round(14.2).toLocaleString()}
             </span>
           </div>
         </motion.div>
@@ -313,15 +354,48 @@ export default function ManagerDashboard() {
         animate="show"
         className="flex flex-col gap-4"
       >
+        <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-card border border-border p-4 rounded-xl">
+          <div className="flex items-center gap-4 w-full md:w-auto">
+            <div className="flex flex-col gap-1 w-full md:w-48">
+              <label className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">{t("dash_th_product")}</label>
+              <select 
+                value={filterProductId}
+                onChange={(e) => setFilterProductId(e.target.value)}
+                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary/50 text-foreground"
+              >
+                <option value="ALL">All Products</option>
+                {products.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex flex-col gap-1 w-full md:w-48">
+              <label className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">{t("dash_th_status")}</label>
+              <select 
+                value={filterState}
+                onChange={(e) => setFilterState(e.target.value)}
+                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary/50 text-foreground"
+              >
+                <option value="ALL">All States</option>
+                <option value="PENDING">{t("dash_status_pending")}</option>
+                <option value="IN_PROGRESS">{t("dash_status_inprogress")}</option>
+                <option value="COMPLETED">{t("dash_status_completed")}</option>
+                <option value="FINAL">FINAL</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-12 gap-4 px-4 py-2 text-xs font-mono text-muted-foreground uppercase tracking-wider border-b border-border/50">
           <div className="col-span-2">{t("dash_th_order")}</div>
           <div className="col-span-4">{t("dash_th_product")}</div>
-          <div className="col-span-2">{t("dash_th_volume")}</div>
+          <div className="col-span-2">{displayMode === 'units' ? t("dash_display_units") : t("dash_display_qty")}</div>
           <div className="col-span-2">{t("dash_th_status")}</div>
           <div className="col-span-2 text-right">{t("dash_th_actions")}</div>
         </div>
 
-        {activeMOs.map(mo => (
+        {filteredMOs.map(mo => (
           <motion.div 
             key={mo.id} 
             variants={itemVariants}
@@ -348,7 +422,10 @@ export default function ManagerDashboard() {
               </div>
               
               <div className="col-span-2 text-sm text-foreground flex flex-col justify-center">
-                <div><span className="font-mono">{convertQty(mo.targetQty, mo.productId, activeUnit).toFixed(activeUnit === 'units' ? 0 : 2)}</span> <span className="text-muted-foreground text-xs">{unitLabel}</span></div>
+                {(() => {
+                  const { value, unit } = getMODisplayQty(mo.targetQty, mo.productId)
+                  return <div><span className="font-mono">{value}</span> <span className="text-muted-foreground text-xs font-mono">{unit}</span></div>
+                })()}
                 {mo.programmedDate && <span className="text-xs text-amber-600 font-mono">{t("dash_modal_sch")} {mo.programmedDate}</span>}
               </div>
               
@@ -379,12 +456,18 @@ export default function ManagerDashboard() {
                       if (hasQC) {
                         return (
                           <span className="text-[10px] text-muted-foreground font-mono leading-none mt-0.5">
-                            {t("dash_qc_passed")}: {mo.passedQCBatches} / {mo.targetQty} {unitLabel}
+                            {t("dash_qc_passed")}: {mo.passedQCBatches} / {mo.targetQty} {getMOUnit(mo.productId)}
                           </span>
                         )
                       }
                       return null
                     })()}
+                  </div>
+                )}
+                {mo.status === "FINAL" && (
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle className="text-blue-500 w-4 h-4" weight="fill" />
+                    <span className="text-sm text-blue-600 font-medium">FINAL</span>
                   </div>
                 )}
               </div>
@@ -397,7 +480,7 @@ export default function ManagerDashboard() {
           </motion.div>
         ))}
         
-        {activeMOs.length === 0 && (
+        {filteredMOs.length === 0 && (
           <div className="py-12 flex flex-col items-center justify-center text-center border border-dashed border-border rounded-xl">
             <PresentationChart className="w-8 h-8 text-muted-foreground mb-4 opacity-50" />
             <p className="text-sm text-muted-foreground">{t("dash_empty")}</p>
@@ -457,7 +540,7 @@ export default function ManagerDashboard() {
                     <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">{t("dash_modal_label_product")}</label>
                     <select 
                       value={newMoProductId}
-                      onChange={(e) => setNewMoProductId(e.target.value)}
+                      onChange={(e) => handleProductChange(e.target.value)}
                       className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground appearance-none"
                       required
                     >
@@ -468,23 +551,17 @@ export default function ManagerDashboard() {
                     </select>
                   </div>
 
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">{t("dash_modal_label_line")}</label>
-                    <select 
-                      value={newMoLineId}
-                      onChange={(e) => setNewMoLineId(e.target.value)}
-                      className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground appearance-none"
-                      required
-                    >
-                      <option value="" disabled>{t("dash_modal_placeholder_line")}</option>
-                      {lines.map(l => (
-                        <option key={l.id} value={l.id}>{l.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {newMoLineId && (
+                    <div className="flex flex-col gap-2">
+                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">{t("dash_modal_label_line")}</label>
+                      <div className="w-full px-4 py-3 bg-muted border border-border rounded-xl text-muted-foreground">
+                        {lines.find(l => l.id === newMoLineId)?.name || "Auto-assigned"}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">{t("dash_modal_label_volume")} ({unitLabel})</label>
+                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">{t("dash_modal_label_volume")} ({selectedProduct ? productUnit : "units"})</label>
                     <input 
                       type="number" 
                       min="1"
