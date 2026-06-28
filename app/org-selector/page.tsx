@@ -4,11 +4,13 @@ import React, { useState } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
+import { useLanguage } from "@/providers/LanguageProvider"
 import { StorefrontIcon, Briefcase, DeviceTabletSpeakerIcon, ArrowRight, Plus, Building, X, SignOut, SignIn } from "@phosphor-icons/react"
 
 export default function OrgSelectorPage() {
   const router = useRouter()
   const { setActiveSession } = useMockData()
+  const { t } = useLanguage()
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [modalMode, setModalMode] = useState<"create" | "join">("create")
   const [newOrgName, setNewOrgName] = useState("")
@@ -62,7 +64,7 @@ export default function OrgSelectorPage() {
         onClick={() => router.push("/login")}
         className="absolute top-6 right-6 p-2 text-muted-foreground hover:bg-muted hover:text-foreground rounded-full transition-colors flex items-center gap-2"
       >
-        <span className="text-sm font-medium">Sign Out</span>
+        <span className="text-sm font-medium">{t("org_signout")}</span>
         <SignOut className="w-5 h-5" />
       </button>
 
@@ -83,8 +85,8 @@ export default function OrgSelectorPage() {
             .fallback-icon-svg { display: none !important; }
             .fallback-icon .fallback-icon-svg { display: flex !important; }
           `}} />
-          <h1 className="text-3xl text-foreground font-display font-bold tracking-tight mb-2">Select Active Environment</h1>
-          <p className="text-muted-foreground">Choose your target organization and operational role.</p>
+          <h1 className="text-3xl text-foreground font-display font-bold tracking-tight mb-2">{t("org_title")}</h1>
+          <p className="text-muted-foreground">{t("org_desc")}</p>
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -104,13 +106,13 @@ export default function OrgSelectorPage() {
               </div>
               
               <div className="flex-1">
-                <h3 className="text-xl font-display text-foreground font-bold tracking-tight mb-1">HQ Dashboard</h3>
+                <h3 className="text-xl font-display text-foreground font-bold tracking-tight mb-1">{t("org_card_manager")}</h3>
                 <p className="text-sm font-medium text-foreground mb-4">Alpha Feed Co.</p>
               </div>
               
               <div className="w-full flex flex-col gap-2 border-t border-border/50 pt-4 mt-auto">
-                <span className="text-xs text-muted-foreground font-mono">ROLE: PRODUCTION MANAGER</span>
-                <span className="text-xs text-muted-foreground font-mono">ACCESS: FULL</span>
+                <span className="text-xs text-muted-foreground font-mono">{t("org_role_manager")}</span>
+                <span className="text-xs text-muted-foreground font-mono">{t("org_access_full")}</span>
               </div>
             </button>
           </motion.div>
@@ -131,13 +133,13 @@ export default function OrgSelectorPage() {
               </div>
               
               <div className="flex-1">
-                <h3 className="text-xl font-display text-foreground font-bold tracking-tight mb-1">Shop Floor Kiosk</h3>
+                <h3 className="text-xl font-display text-foreground font-bold tracking-tight mb-1">{t("org_card_operator")}</h3>
                 <p className="text-sm font-medium text-foreground mb-4">Beta Milling Partners</p>
               </div>
               
               <div className="w-full flex flex-col gap-2 border-t border-border/50 pt-4 mt-auto">
-                <span className="text-xs text-muted-foreground font-mono">ROLE: LINE OPERATOR</span>
-                <span className="text-xs text-muted-foreground font-mono">ACCESS: EXECUTION ONLY</span>
+                <span className="text-xs text-muted-foreground font-mono">{t("org_role_operator")}</span>
+                <span className="text-xs text-muted-foreground font-mono">{t("org_access_execution")}</span>
               </div>
             </button>
           </motion.div>
@@ -151,8 +153,8 @@ export default function OrgSelectorPage() {
               <div className="w-12 h-12 rounded-full border border-border flex items-center justify-center mb-4 group-hover:bg-primary group-hover:border-primary transition-colors duration-300">
                 <Plus className="w-6 h-6 text-primary group-hover:text-background transition-colors" />
               </div>
-              <h3 className="text-lg font-display font-bold tracking-tight mb-3 text-foreground">Join or Create New Organization</h3>
-              <p className="text-sm font-medium text-muted-foreground">Provision a new multi-tenant sandbox</p>
+              <h3 className="text-lg font-display font-bold tracking-tight mb-3 text-foreground">{t("org_card_create")}</h3>
+              <p className="text-sm font-medium text-muted-foreground">{t("org_card_create_desc")}</p>
             </button>
           </motion.div>
         </div>
@@ -190,7 +192,7 @@ export default function OrgSelectorPage() {
                   </button>
                 </div>
                 
-                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">New Environment</h2>
+                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">{t("org_modal_title")}</h2>
                 
                 <div className="flex bg-muted p-1 rounded-xl mb-6 relative">
                   <div 
@@ -202,34 +204,32 @@ export default function OrgSelectorPage() {
                     onClick={() => setModalMode("create")}
                     className={`flex-1 relative z-10 py-2 text-sm font-medium transition-colors ${modalMode === "create" ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                   >
-                    Create
+                    {t("org_tab_create")}
                   </button>
                   <button 
                     type="button"
                     onClick={() => setModalMode("join")}
                     className={`flex-1 relative z-10 py-2 text-sm font-medium transition-colors ${modalMode === "join" ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                   >
-                    Join
+                    {t("org_tab_join")}
                   </button>
                 </div>
                 
                 <p className="text-muted-foreground text-sm mb-8">
-                  {modalMode === "create" 
-                    ? "Provision a new organizational boundary. You will automatically be assigned as the Production Manager." 
-                    : "Join an existing organization. You will be assigned as a Line Operator."}
+                  {modalMode === "create" ? t("org_modal_desc_create") : t("org_modal_desc_join")}
                 </p>
 
                 <form onSubmit={handleCreateOrg} className="flex flex-col gap-5">
                   {modalMode === "create" ? (
                     <>
                       <div className="flex flex-col gap-2">
-                        <label htmlFor="orgName" className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Organization Name</label>
+                        <label htmlFor="orgName" className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">{t("org_label_name")}</label>
                         <input 
                           id="orgName"
                           type="text" 
                           value={newOrgName}
                           onChange={(e) => setNewOrgName(e.target.value)}
-                          placeholder="e.g. Omega Industries"
+                          placeholder={t("org_placeholder_name")}
                           className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground"
                           autoFocus
                           required
@@ -237,29 +237,29 @@ export default function OrgSelectorPage() {
                       </div>
 
                       <div className="flex flex-col gap-2">
-                        <label htmlFor="orgSector" className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Industry Sector</label>
+                        <label htmlFor="orgSector" className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">{t("org_label_sector")}</label>
                         <select 
                           id="orgSector"
                           value={newOrgSector}
                           onChange={(e) => setNewOrgSector(e.target.value)}
                           className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground appearance-none"
                         >
-                          <option value="manufacturing">General Manufacturing</option>
-                          <option value="feed">Livestock Feed Production</option>
-                          <option value="chemicals">Industrial Chemicals</option>
-                          <option value="textiles">Textile & Garment</option>
+                          <option value="manufacturing">{t("org_option_manufacturing")}</option>
+                          <option value="feed">{t("org_option_livestock")}</option>
+                          <option value="chemicals">{t("org_option_chemicals")}</option>
+                          <option value="textiles">{t("org_option_textile")}</option>
                         </select>
                       </div>
                     </>
                   ) : (
                     <div className="flex flex-col gap-2">
-                      <label htmlFor="joinOrgId" className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Organization Code</label>
+                      <label htmlFor="joinOrgId" className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">{t("org_label_code")}</label>
                       <input 
                         id="joinOrgId"
                         type="text" 
                         value={joinOrgId}
                         onChange={(e) => setJoinOrgId(e.target.value)}
-                        placeholder="e.g. org_alpha_feed"
+                        placeholder={t("org_placeholder_code")}
                         className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground"
                         autoFocus
                         required
@@ -275,12 +275,12 @@ export default function OrgSelectorPage() {
                     {modalMode === "create" ? (
                       <>
                         <Plus className="w-5 h-5" />
-                        Provision & Enter
+                        {t("org_btn_provision")}
                       </>
                     ) : (
                       <>
                         <SignIn className="w-5 h-5" />
-                        Join Environment
+                        {t("org_btn_join")}
                       </>
                     )}
                   </button>

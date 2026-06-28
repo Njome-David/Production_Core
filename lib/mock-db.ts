@@ -57,10 +57,12 @@ export interface Product {
   price: number // Target Selling Price
   targetMargin?: number
   finalMass?: number
+  imageUrl?: string
+  notice?: string
   assignedLineIds: string[]
   qcParameters?: QCParameter[]
   routing?: RoutingStep[]
-  qualityGates?: { sequenceAfter: number; gateId: string }[]
+  qualityGates?: { sequenceAfter: number; gateId: string; timeInHours?: number }[]
 }
 
 export interface BOMLine {
@@ -98,6 +100,8 @@ export interface QualityGate {
   type: string
   inspectionType: string
   serviceProvider: string
+  opCostPerHour: number
+  operationRate: number // Batches per hour
 }
 
 export interface ProductionLine {
@@ -150,6 +154,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 450.00, 
     targetMargin: 30,
     finalMass: 15,
+    imageUrl: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400&h=300&fit=crop",
+    notice: "Handle with care. Store in dry environment. Maximum stacking height: 4 units.",
     assignedLineIds: ["line_1", "line_2"],
     qcParameters: [
       { id: "qc_1", name: "Moisture Content", minValue: 6, maxValue: 8, unit: "%", tolerance: 0.5 },
@@ -167,6 +173,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 200.00, 
     targetMargin: 25,
     finalMass: 5,
+    imageUrl: "https://images.unsplash.com/photo-1592078615290-033ee584e267?w=400&h=300&fit=crop",
+    notice: "Assembly required. Check all joints before use.",
     assignedLineIds: ["line_2"],
     qcParameters: [],
     routing: [
@@ -176,18 +184,39 @@ export const INITIAL_PRODUCTS: Product[] = [
   },
   // Provenderie Products
   {
+    id: "prod_bottleneck",
+    name: "Flat Pack Shelf Kit",
+    sku: "SKU-BN-01",
+    price: 85.00,
+    targetMargin: 28,
+    finalMass: 3.5,
+    imageUrl: "https://images.unsplash.com/photo-1597072689227-88922c6e7f66?w=400&h=300&fit=crop",
+    notice: "Assembly required. Contains small parts. Max load: 15kg per shelf.",
+    assignedLineIds: [],
+    qcParameters: [
+      { id: "qc_bn_1", name: "Edge Finish", minValue: 0, maxValue: 0.5, unit: "mm", tolerance: 0.1 }
+    ],
+    routing: [
+      { machineId: "mac_saw_1", sequence: 1, usagePercentage: 100, timeInHours: 0.3 },
+      { machineId: "mac_cnc_1", sequence: 2, usagePercentage: 100, timeInHours: 0.5 },
+      { machineId: "mac_spray_1", sequence: 3, usagePercentage: 100, timeInHours: 0.4 }
+    ]
+  },
+  {
     id: "prod_prov_1",
     name: "Provende Volaille Démarrage",
     sku: "PRV-VOL-DEM",
     price: 350.00, // FCFA per kg
     targetMargin: 20,
     finalMass: 50, // 50kg bag
+    imageUrl: "https://images.unsplash.com/photo-1589923188900-85dae523342b?w=400&h=300&fit=crop",
+    notice: "Usage: Complete feed for chicks 0-8 weeks. Store in cool, dry place. Do not feed to adult poultry.",
     assignedLineIds: [],
     qcParameters: [
       { id: "qc_prov_1", name: "Taux de Protéines", minValue: 21, maxValue: 23, unit: "%", tolerance: 0.5 }
     ],
     qualityGates: [
-      { sequenceAfter: 2, gateId: "gate_prov_qc" }
+      { sequenceAfter: 2, gateId: "gate_prov_qc", timeInHours: 0.25 }
     ],
     routing: [
       { machineId: "mac_prov_1", sequence: 1, usagePercentage: 100, timeInHours: 0.5 }, // Broyeur
@@ -205,6 +234,16 @@ export const INITIAL_BOMS: BOM[] = [
     lines: [
       { materialId: "mat_1", quantityPerUnit: 2.50 },
       { materialId: "mat_2", quantityPerUnit: 0.40 },
+    ]
+  },
+  {
+    id: "bom_bn_1",
+    productId: "prod_bottleneck",
+    unit: "kg",
+    lines: [
+      { materialId: "mat_1", quantityPerUnit: 1.2 },
+      { materialId: "mat_2", quantityPerUnit: 0.15 },
+      { materialId: "mat_3", quantityPerUnit: 8 },
     ]
   },
   {
@@ -231,8 +270,8 @@ export const INITIAL_MACHINES: Machine[] = [
 ]
 
 export const INITIAL_QUALITY_GATES: QualityGate[] = [
-  { id: "gate_qc_1", name: "Optical QC Scanner", description: "Vision-based defect detection", type: "VISUAL", inspectionType: "Automated Visual Inspection", serviceProvider: "Internal QA" },
-  { id: "gate_prov_qc", name: "Laboratoire Contrôle Qualité", description: "Vérification des taux protéiques", type: "CHEMICAL", inspectionType: "Analyse Chimique", serviceProvider: "Labo Interne" }
+  { id: "gate_qc_1", name: "Optical QC Scanner", description: "Vision-based defect detection", type: "VISUAL", inspectionType: "Automated Visual Inspection", serviceProvider: "Internal QA", opCostPerHour: 150, operationRate: 30 },
+  { id: "gate_prov_qc", name: "Laboratoire Contrôle Qualité", description: "Vérification des taux protéiques", type: "CHEMICAL", inspectionType: "Analyse Chimique", serviceProvider: "Labo Interne", opCostPerHour: 250, operationRate: 10 }
 ]
 
 export const INITIAL_LINES: ProductionLine[] = [
@@ -256,6 +295,11 @@ export const INITIAL_ORDERS: ManufacturingOrder[] = [
   { id: "mo_101", productId: "prod_1", targetQty: 100, status: "COMPLETED", lineId: "line_prod_1", startedAt: "2026-05-01T08:00:00Z", completedAt: "2026-05-01T16:00:00Z", qcStatus: "DONE", passedQCBatches: 100, currentSequence: 2 },
   { id: "mo_102", productId: "prod_1", targetQty: 50, status: "IN_PROGRESS", lineId: "line_prod_1", machineId: "mac_saw_1", startedAt: new Date(Date.now() - 3600000).toISOString(), qcStatus: "UNDONE", currentSequence: 1 },
   { id: "mo_104", productId: "prod_1", targetQty: 250, status: "PENDING", lineId: "line_prod_1", qcStatus: "UNDONE", currentSequence: 1 },
+  // Bottleneck Orders (all use mac_cnc_1 to create contention)
+  { id: "mo_bn_1", productId: "prod_bottleneck", targetQty: 50, status: "COMPLETED", lineId: "line_prod_bottleneck_1", machineId: "mac_cnc_1", startedAt: new Date(Date.now() - 36000000).toISOString(), completedAt: new Date(Date.now() - 28800000).toISOString(), qcStatus: "DONE", passedQCBatches: 50, currentSequence: 2 },
+  { id: "mo_bn_2", productId: "prod_bottleneck", targetQty: 30, status: "IN_PROGRESS", lineId: "line_prod_bottleneck_1", machineId: "mac_cnc_1", startedAt: new Date(Date.now() - 3600000).toISOString(), qcStatus: "UNDONE", currentSequence: 2 },
+  { id: "mo_bn_3", productId: "prod_bottleneck", targetQty: 60, status: "PENDING", lineId: "line_prod_bottleneck_1", machineId: "mac_cnc_1", qcStatus: "UNDONE", currentSequence: 2 },
+  { id: "mo_bn_4", productId: "prod_bottleneck", targetQty: 40, status: "PENDING", lineId: "line_prod_bottleneck_1", machineId: "mac_saw_1", qcStatus: "UNDONE", currentSequence: 1 },
   // Provenderie Orders
   { id: "mo_prov_1", productId: "prod_prov_1", targetQty: 200, status: "IN_PROGRESS", lineId: "line_prod_prov_1", machineId: "mac_prov_1", startedAt: new Date(Date.now() - 7200000).toISOString(), qcStatus: "UNDONE", currentSequence: 1 },
 ]

@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
+import { useLanguage } from "@/providers/LanguageProvider"
 import { BuildingsIcon, ArrowRight, House } from "@phosphor-icons/react"
 
 export default function LoginPage() {
   const router = useRouter()
   const { setActiveSession } = useMockData()
+  const { t } = useLanguage()
   const [isSignUp, setIsSignUp] = useState(false)
   const [name, setName] = useState("")
   const [company, setCompany] = useState("")
@@ -30,7 +32,7 @@ export default function LoginPage() {
         className="absolute top-5 left-5 z-20 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-2 rounded-xl hover:bg-muted/60 backdrop-blur-sm"
       >
         <House weight="duotone" className="w-4 h-4" />
-        <span className="font-medium hidden sm:inline">Home</span>
+        <span className="font-medium hidden sm:inline">{t("login_home")}</span>
       </Link>
 
       {/* Left Asset Pane (50/50 Split) */}
@@ -52,10 +54,10 @@ export default function LoginPage() {
             transition={{ ease: [0.32, 0.72, 0, 1] as const, duration: 0.8 }}
           >
             <h1 className="text-4xl md:text-5xl font-display font-bold tracking-tighter text-foreground leading-none mb-4">
-              Precision Output.<br/>Zero Waste.
+              <span>{t("login_pane_title")}</span>
             </h1>
             <p className="text-muted-foreground text-base leading-relaxed">
-              Industrial-grade production management for any business type or size. Built for speed, resilient to chaos.
+              {t("login_pane_desc")}
             </p>
           </motion.div>
         </div>
@@ -74,7 +76,7 @@ export default function LoginPage() {
               <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.parentElement?.classList.add('fallback-icon'); }} />
               <div className="hidden fallback-icon-svg flex-col items-center gap-2 absolute inset-0 justify-center">
                 <BuildingsIcon weight="duotone" className="w-12 h-12 text-foreground" />
-                <span className="font-display font-bold text-foreground tracking-tight text-xl">PRODUCTION_CORE</span>
+                <span className="font-display font-bold text-foreground tracking-tight text-xl">{t("login_fallback_logo")}</span>
               </div>
             </div>
           </div>
@@ -87,12 +89,10 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="flex flex-col gap-6">
             <div className="flex flex-col gap-2">
               <h2 className="text-2xl font-display text-foreground font-bold tracking-tight">
-                {isSignUp ? "Create Account" : "Access Gateway"}
+                {isSignUp ? t("login_title_signup") : t("login_title_signin")}
               </h2>
               <p className="text-muted-foreground text-sm">
-                {isSignUp 
-                  ? "Enter your details to provision a new manufacturing tenant profile." 
-                  : "Enter your credentials to connect to the active facility."}
+                {isSignUp ? t("login_desc_signup") : t("login_desc_signin")}
               </p>
             </div>
 
@@ -100,25 +100,25 @@ export default function LoginPage() {
               {isSignUp && (
                 <>
                   <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium text-foreground">Full Name</label>
+                    <label className="text-sm font-medium text-foreground">{t("login_label_name")}</label>
                     <input 
                       type="text" 
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. David Vance"
+                      placeholder={t("login_placeholder_name")}
                       className="h-11 px-4 bg-background text-foreground border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow" 
                     />
                   </div>
 
                   <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium text-foreground">Company Name</label>
+                    <label className="text-sm font-medium text-foreground">{t("login_label_company")}</label>
                     <input 
                       type="text" 
                       required
                       value={company}
                       onChange={(e) => setCompany(e.target.value)}
-                      placeholder="e.g. Alpha Feed Co."
+                      placeholder={t("login_placeholder_company")}
                       className="h-11 px-4 bg-background text-foreground border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow" 
                     />
                   </div>
@@ -126,7 +126,7 @@ export default function LoginPage() {
               )}
 
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-foreground">Email Address</label>
+                <label className="text-sm font-medium text-foreground">{t("login_label_email")}</label>
                 <input 
                   type="email" 
                   required
@@ -137,7 +137,7 @@ export default function LoginPage() {
               </div>
 
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-foreground">Password</label>
+                <label className="text-sm font-medium text-foreground">{t("login_label_password")}</label>
                 <input 
                   type="password" 
                   required
@@ -154,7 +154,7 @@ export default function LoginPage() {
                 type="submit"
                 className="h-11 w-full bg-foreground text-background font-medium rounded-md flex items-center justify-center gap-2 hover:bg-foreground/90 transition-colors"
               >
-                {isSignUp ? "Register tenant profile" : "Sign In"}
+                {isSignUp ? t("login_btn_register") : t("login_btn_signin")}
                 <ArrowRight weight="bold" className="w-4 h-4" />
               </motion.button>
               
@@ -164,7 +164,7 @@ export default function LoginPage() {
                 onClick={() => setIsSignUp(!isSignUp)}
                 className="h-11 w-full bg-background text-foreground border border-border font-medium rounded-md flex items-center justify-center gap-2 hover:bg-muted transition-colors"
               >
-                {isSignUp ? "Already have an account? Sign In" : "Create New Account"}
+                {isSignUp ? t("login_toggle_signin") : t("login_btn_create")}
               </motion.button>
             </div>
           </form>

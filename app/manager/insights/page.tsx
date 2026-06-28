@@ -5,8 +5,10 @@ import { motion } from "framer-motion"
 import { ChartLineUp, CurrencyDollar, FileText, ArrowUpRight, ArrowDownRight, Package } from "@phosphor-icons/react"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Cell } from "recharts"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
+import { useLanguage } from "@/providers/LanguageProvider"
 
 export default function InsightsPage() {
+  const { t } = useLanguage()
   const { inventoryLedger, activeMOs, materials, products } = useMockData()
 
   // Calculate Insights
@@ -99,8 +101,8 @@ export default function InsightsPage() {
           transition={{ ease: [0.32, 0.72, 0, 1] as const, duration: 0.6 }}
           className="max-w-xl"
         >
-          <h1 className="text-4xl font-display text-foreground font-bold tracking-tight mb-2">Financial Insights</h1>
-          <p className="text-muted-foreground text-lg">Yield analysis, resource consumption costs, and operational variance reporting.</p>
+          <h1 className="text-4xl font-display text-foreground font-bold tracking-tight mb-2">{t("insights_title")}</h1>
+          <p className="text-muted-foreground text-lg">{t("insights_desc")}</p>
         </motion.div>
       </div>
 
@@ -114,7 +116,7 @@ export default function InsightsPage() {
           <div className="w-10 h-10 rounded bg-emerald-500/10 flex items-center justify-center mb-2">
             <CurrencyDollar className="w-5 h-5 text-emerald-600" weight="duotone" />
           </div>
-          <span className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">Estimated Revenue</span>
+          <span className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">{t("insights_kpi_revenue")}</span>
           <div className="flex items-end gap-2">
             <span className="text-3xl text-foreground font-display font-bold">{insights.estimatedRevenue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} FCFA</span>
           </div>
@@ -124,7 +126,7 @@ export default function InsightsPage() {
           <div className="w-10 h-10 rounded bg-amber-500/10 flex items-center justify-center mb-2">
             <ChartLineUp className="w-5 h-5 text-amber-600" weight="duotone" />
           </div>
-          <span className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">Cost of Goods (COGS)</span>
+          <span className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">{t("insights_kpi_cogs")}</span>
           <div className="flex items-end gap-2">
             <span className="text-3xl text-foreground font-display font-bold">{insights.estimatedCostOfGoods.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} FCFA</span>
           </div>
@@ -134,7 +136,7 @@ export default function InsightsPage() {
           <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center mb-2">
             <ArrowUpRight className="w-5 h-5 text-primary" weight="duotone" />
           </div>
-          <span className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">Gross Margin</span>
+          <span className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">{t("insights_kpi_margin")}</span>
           <div className="flex items-end gap-2">
             <span className="text-3xl text-foreground font-display font-bold">{insights.grossMargin.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} FCFA</span>
           </div>
@@ -144,7 +146,7 @@ export default function InsightsPage() {
           <div className="w-10 h-10 rounded bg-indigo-500/10 flex items-center justify-center mb-2">
             <Package className="w-5 h-5 text-indigo-600" weight="duotone" />
           </div>
-          <span className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">Completed MOs</span>
+          <span className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">{t("insights_kpi_completed")}</span>
           <div className="flex items-end gap-2">
             <span className="text-3xl text-foreground font-display font-bold">{insights.completedOrdersCount}</span>
           </div>
@@ -159,7 +161,7 @@ export default function InsightsPage() {
           className="flex flex-col border border-border/50 rounded-2xl bg-card overflow-hidden shadow-sm"
         >
           <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center justify-between">
-            <h3 className="font-display text-foreground font-bold text-lg">Recent Purchasing Ledger</h3>
+            <h3 className="font-display text-foreground font-bold text-lg">{t("insights_ledger")}</h3>
             <FileText className="w-5 h-5 text-muted-foreground" />
           </div>
           <div className="flex-1 overflow-y-auto max-h-[400px]">
@@ -175,14 +177,14 @@ export default function InsightsPage() {
                     </div>
                     <div className="flex justify-between items-center text-xs text-muted-foreground">
                       <span className="font-mono">{new Date(entry.timestamp).toLocaleString()}</span>
-                      <span className="font-mono">{entry.quantity} {mat?.unit || 'Units'} at {(entry.totalValue / entry.quantity).toFixed(0)} FCFA/{mat?.unit || 'Unit'}</span>
+                      <span className="font-mono">{entry.quantity} {mat?.unit || t("dash_unit_units")} at {(entry.totalValue / entry.quantity).toFixed(0)} FCFA/{mat?.unit || t("dash_unit_units")}</span>
                     </div>
                   </div>
                 )
              })}
-             {inventoryLedger.filter(l => l.type === "REFILL").length === 0 && (
-               <div className="p-8 text-center text-sm text-muted-foreground">No recent purchasing records.</div>
-             )}
+              {inventoryLedger.filter(l => l.type === "REFILL").length === 0 && (
+                <div className="p-8 text-center text-sm text-muted-foreground">{t("insights_ledger_empty")}</div>
+              )}
           </div>
         </motion.div>
 
@@ -193,7 +195,7 @@ export default function InsightsPage() {
           className="flex flex-col border border-border/50 rounded-2xl bg-card overflow-hidden shadow-sm"
         >
           <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center justify-between">
-            <h3 className="font-display text-foreground font-bold text-lg">Margin Visualizer</h3>
+            <h3 className="font-display text-foreground font-bold text-lg">{t("insights_margin")}</h3>
             <ChartLineUp className="w-5 h-5 text-muted-foreground" />
           </div>
           <div className="p-6 flex-1 flex flex-col items-center justify-center min-h-[400px]">
@@ -229,7 +231,7 @@ export default function InsightsPage() {
             ) : (
               <div className="flex flex-col items-center justify-center text-muted-foreground gap-2">
                 <ChartLineUp className="w-12 h-12 opacity-20" />
-                <span className="text-sm font-medium">No completed orders to calculate margins.</span>
+                <span className="text-sm font-medium">{t("insights_margin_empty")}</span>
               </div>
             )}
           </div>
@@ -244,19 +246,19 @@ export default function InsightsPage() {
         className="flex flex-col border border-border/50 rounded-2xl bg-card overflow-hidden shadow-sm mt-8"
       >
         <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center justify-between">
-          <h3 className="font-display text-foreground font-bold text-lg">Detailed Per-Product Financials</h3>
+          <h3 className="font-display text-foreground font-bold text-lg">{t("insights_detailed")}</h3>
           <FileText className="w-5 h-5 text-muted-foreground" />
         </div>
         <div className="w-full overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse">
             <thead>
               <tr className="bg-muted/10 border-b border-border/40 text-muted-foreground text-xs uppercase font-mono tracking-wider">
-                <th className="py-4 px-6 font-semibold">Product</th>
-                <th className="py-4 px-6 font-semibold">Total Produced</th>
-                <th className="py-4 px-6 font-semibold text-right">Revenue</th>
-                <th className="py-4 px-6 font-semibold text-right">COGS</th>
-                <th className="py-4 px-6 font-semibold text-right">Gross Margin</th>
-                <th className="py-4 px-6 font-semibold text-right">Margin %</th>
+                <th className="py-4 px-6 font-semibold">{t("insights_th_product")}</th>
+                <th className="py-4 px-6 font-semibold">{t("insights_th_produced")}</th>
+                <th className="py-4 px-6 font-semibold text-right">{t("insights_th_revenue")}</th>
+                <th className="py-4 px-6 font-semibold text-right">{t("insights_th_cogs")}</th>
+                <th className="py-4 px-6 font-semibold text-right">{t("insights_th_margin")}</th>
+                <th className="py-4 px-6 font-semibold text-right">{t("insights_th_margin_pct")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/20">
@@ -277,7 +279,7 @@ export default function InsightsPage() {
               {perProductInsights.length === 0 && (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-muted-foreground text-sm">
-                    No production data available for detailed analysis.
+                    {t("insights_empty")}
                   </td>
                 </tr>
               )}

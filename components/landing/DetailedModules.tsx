@@ -3,7 +3,7 @@
 import React from "react"
 import { motion } from "framer-motion"
 import { ChartLineUp, DeviceTablet, FolderOpen, Buildings, CheckCircle, PresentationChart } from "@phosphor-icons/react"
-import { useLanguage } from "./LanguageProvider"
+import { useLanguage } from "@/providers/LanguageProvider"
 
 const containerVariants = {
   hidden: { opacity: 0 },

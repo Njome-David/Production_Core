@@ -4,11 +4,15 @@ import React, { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useResilientChronometer } from "@/hooks/useResilientChronometer"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
-import { Play, Pause, Stop, Warning, Drop, CheckCircle, PresentationChart, Trash, CaretLeft, CheckSquareOffset } from "@phosphor-icons/react"
+import { Play, Pause, Drop, CheckCircle, PresentationChart, Trash, CaretLeft, HardDrives } from "@phosphor-icons/react"
 import Link from "next/link"
+import { useLanguage } from "@/providers/LanguageProvider"
 
 export default function OperatorTabletPage() {
   const { activeSession, activeMOs, setMOStatus, materials, updateMO, machines, products, qualityGates } = useMockData()
+  const { t } = useLanguage()
+  type RightTab = "bom" | "product_info" | "qc_params"
+  const [rightTab, setRightTab] = useState<RightTab>("bom")
   
   // QC gate state
   const [showQcModal, setShowQcModal] = useState(false)
@@ -37,14 +41,63 @@ export default function OperatorTabletPage() {
     : activeMOs.filter(mo => mo.machineId === activeSession?.active_station)
   const currentMO = stationMOs.find(mo => mo.status === "IN_PROGRESS") || stationMOs.find(mo => mo.status === "PENDING")
 
+  // Compute total duration for countdown based on current station
+  const product = currentMO ? products.find(p => p.id === currentMO.productId) : null
+  const currentSeq = currentMO?.currentSequence || 1
+  const totalSeconds = React.useMemo(() => {
+    if (!currentMO || !product) return 0
+    if (isGateStation) {
+      const gateEntry = product.qualityGates?.find(g => g.sequenceAfter === currentSeq)
+      const hours = gateEntry?.timeInHours ?? 0.25
+      return Math.round(hours * 3600)
+    }
+    const routingStep = product.routing?.find(r => r.sequence === currentSeq)
+    if (!routingStep) return 0
+    return Math.round(routingStep.timeInHours * 3600)
+  }, [currentMO, product, currentSeq, isGateStation])
+
+  const handleAutoComplete = React.useCallback(() => {
+    if (!currentMO) return
+    const p = products.find(p => p.id === currentMO.productId)
+    const routing = p?.routing || []
+    const gates = p?.qualityGates || []
+    const seq = currentMO.currentSequence || 1
+
+    if (isGateStation) {
+      const currentIndex = routing.findIndex(r => r.sequence === seq)
+      if (currentIndex !== -1 && currentIndex < routing.length - 1) {
+        const nextStep = routing[currentIndex + 1]
+        updateMO(currentMO.id, { currentGateId: undefined, machineId: nextStep.machineId, currentSequence: nextStep.sequence, status: "PENDING" })
+      } else {
+        updateMO(currentMO.id, { currentGateId: undefined })
+        setMOStatus(currentMO.id, "COMPLETED")
+      }
+      return
+    }
+
+    const currentIndex = routing.findIndex(r => r.sequence === seq)
+    const attachedGate = gates.find(g => g.sequenceAfter === seq)
+
+    if (attachedGate) {
+      updateMO(currentMO.id, { machineId: undefined, currentGateId: attachedGate.gateId, status: "PENDING" })
+    } else if (currentIndex !== -1 && currentIndex < routing.length - 1) {
+      const nextStep = routing[currentIndex + 1]
+      updateMO(currentMO.id, { currentSequence: nextStep.sequence, machineId: nextStep.machineId, status: "PENDING" })
+    } else {
+      setMOStatus(currentMO.id, "COMPLETED")
+    }
+  }, [currentMO, products, isGateStation, updateMO, setMOStatus])
+
   const {
     isRunning,
     formattedTime,
     startTimer,
     pauseTimer,
     stopTimer,
-    elapsedSeconds
-  } = useResilientChronometer(currentMO?.id || null)
+    elapsedSeconds,
+    remainingSeconds,
+    progressPercent
+  } = useResilientChronometer(currentMO?.id || null, totalSeconds, handleAutoComplete)
 
   const [showRefillModal, setShowRefillModal] = useState(false)
   const [showScrapModal, setShowScrapModal] = useState(false)
@@ -133,7 +186,7 @@ export default function OperatorTabletPage() {
             className="inline-flex items-center gap-2 px-4 py-2 bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-colors font-medium text-sm"
           >
             <CaretLeft className="w-4 h-4" />
-            Back to Select Station
+            {t("tablet_back")}
           </Link>
         </div>
         <div className="flex-1 flex items-center justify-center">
@@ -141,8 +194,8 @@ export default function OperatorTabletPage() {
             <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mb-6">
               <PresentationChart className="w-10 h-10 text-muted-foreground opacity-50" />
             </div>
-            <h2 className="text-2xl font-display font-bold mb-2">No Active Orders</h2>
-            <p className="text-muted-foreground">There are currently no manufacturing orders assigned to this station. Await dispatch from the production manager.</p>
+            <h2 className="text-2xl font-display font-bold mb-2">{t("tablet_empty_title")}</h2>
+            <p className="text-muted-foreground">{t("tablet_empty_desc")}</p>
           </div>
         </div>
       </div>
@@ -157,7 +210,7 @@ export default function OperatorTabletPage() {
           className="inline-flex items-center gap-2 px-4 py-2 bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-colors font-medium text-sm"
         >
           <CaretLeft className="w-4 h-4" />
-          Back to Select Station
+          {t("tablet_back")}
         </Link>
       </div>
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 max-w-[1600px] mx-auto w-full">
@@ -176,8 +229,8 @@ export default function OperatorTabletPage() {
             </div>
 
             <div className="mt-6 md:mt-0 flex flex-col items-end">
-              <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest mb-3">Elapsed Run Time</span>
-              <div className="font-mono text-2xl md:text-4xl tracking-tighter font-bold text-foreground bg-clip-text">
+              <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest mb-3">{totalSeconds > 0 ? t("tablet_remaining") : t("tablet_elapsed")}</span>
+              <div className={`font-mono text-2xl md:text-4xl tracking-tighter font-bold bg-clip-text ${remainingSeconds <= 60 && isRunning ? 'text-red-500' : 'text-foreground'}`}>
                 {formattedTime}
               </div>
             </div>
@@ -190,36 +243,32 @@ export default function OperatorTabletPage() {
               <div className="bg-card border border-border rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-bl-[80px] pointer-events-none"></div>
                 <div>
-                  <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Production Target</span>
+                  <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">{t("tablet_target")}</span>
                   <div className="mt-2 font-display text-2xl text-foreground font-bold">
-                    {currentMO.targetQty} <span className="text-lg text-muted-foreground font-normal">Units</span>
+                    {currentMO.targetQty} <span className="text-lg text-muted-foreground font-normal">{t("tablet_units")}</span>
                   </div>
                 </div>
                 
-                {/* 1s per unit computation progress bar */}
-                {(() => {
-                  const totalSeconds = Math.max(1, currentMO.targetQty * 1);
-                  const progressPercentage = Math.min(100, Math.floor((elapsedSeconds / totalSeconds) * 100));
-                  return (
-                    <div className="mt-6 flex flex-col gap-2">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground font-medium">Progress (1s per unit)</span>
-                        <span className="font-mono text-foreground font-bold">{progressPercentage}%</span>
-                      </div>
-                      <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full transition-all duration-300 ${isRunning ? 'bg-amber-500' : 'bg-muted-foreground'}`}
-                          style={{ width: `${progressPercentage}%` }}
-                        ></div>
-                      </div>
+                {/* Countdown progress bar */}
+                {totalSeconds > 0 && (
+                  <div className="mt-6 flex flex-col gap-2">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground font-medium">{t("tablet_progress")}</span>
+                      <span className="font-mono text-foreground font-bold">{Math.round(progressPercent)}%</span>
                     </div>
-                  );
-                })()}
+                    <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-300 ${isRunning ? 'bg-amber-500' : 'bg-muted-foreground'}`}
+                        style={{ width: `${progressPercent}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Real-time Operator Logs panel (directly under target card) */}
               <div className="bg-card border border-border rounded-2xl p-6 flex flex-col flex-1 gap-4 overflow-hidden">
-                <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Operator Notes</span>
+                <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">{t("tablet_notes")}</span>
                 
                 {/* Scrollable list */}
                 <div className="flex-1 overflow-y-auto max-h-[140px] flex flex-col gap-2 pr-1">
@@ -235,7 +284,7 @@ export default function OperatorTabletPage() {
                 <form onSubmit={handleAddLog} className="flex gap-2">
                   <input 
                     type="text"
-                    placeholder="Enter timestamped log..."
+                    placeholder={t("tablet_notes_placeholder")}
                     value={newLogText}
                     onChange={(e) => setNewLogText(e.target.value)}
                     className="flex-1 px-3 py-2 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs font-medium text-foreground"
@@ -244,7 +293,7 @@ export default function OperatorTabletPage() {
                     type="submit"
                     className="px-4 py-2 bg-primary text-primary-foreground font-bold rounded-xl text-xs hover:bg-primary/90 transition-colors"
                   >
-                    Add
+                    {t("tablet_notes_add")}
                   </button>
                 </form>
               </div>
@@ -259,7 +308,7 @@ export default function OperatorTabletPage() {
                   className="h-20 w-full bg-amber-500 text-amber-950 font-display font-bold text-xl rounded-xl flex items-center justify-center gap-3 shadow-[0_4px_20px_rgba(245,158,11,0.3)] hover:bg-amber-400 transition-colors"
                 >
                   <Play weight="fill" className="w-8 h-8" />
-                  INITIATE RUN
+                  {t("tablet_btn_initiate")}
                 </motion.button>
               ) : (
                 <motion.button
@@ -268,7 +317,7 @@ export default function OperatorTabletPage() {
                   className="h-20 w-full bg-muted text-foreground font-display font-bold text-xl rounded-xl flex items-center justify-center gap-3 hover:bg-neutral-200 transition-colors"
                 >
                   <Pause weight="fill" className="w-8 h-8" />
-                  PAUSE LINE
+                  {t("tablet_btn_pause")}
                 </motion.button>
               )}
 
@@ -279,77 +328,199 @@ export default function OperatorTabletPage() {
                 className={`h-20 w-full font-display font-bold text-xl rounded-xl flex items-center justify-center gap-3 transition-colors ${currentMO.status === "PENDING" ? 'bg-background border border-border text-muted-foreground opacity-50 cursor-not-allowed' : 'bg-emerald-500 text-emerald-950 shadow-[0_4px_20px_rgba(16,185,129,0.3)] hover:bg-emerald-400'}`}
               >
                 <CheckCircle weight="bold" className="w-8 h-8" />
-                COMPLETE ORDER
+                {t("tablet_btn_complete")}
               </motion.button>
             </div>
           </div>
         </div>
 
-        {/* Right Column: BOM & Context */}
+        {/* Right Column: Tabs (BOM | Product Info | QC Parameters) */}
         <div className="col-span-1 lg:col-span-4 bg-card border border-border rounded-2xl flex flex-col overflow-hidden">
-          <div className="p-6 border-b border-border/50 bg-muted/20">
-            <h3 className="font-display text-foreground font-bold text-xl">Active Feedstock (BOM)</h3>
-          </div>
-          <div className="flex-1 overflow-y-auto p-2">
-            {currentMO.bom?.lines.map((item, idx) => {
-              const mat = materials.find(m => m.id === item.materialId)
-              return (
-              <div key={idx} className="p-4 border-b border-border/30 last:border-0 flex flex-col gap-2 hover:bg-muted/10 transition-colors rounded-lg">
-                <div className="flex justify-between items-start">
-                  <div className="flex flex-col">
-                    <span className="font-medium text-foreground">{mat?.name || item.materialId}</span>
-                  </div>
-                  <span className="font-mono text-foreground text-sm font-bold">{(item.quantityPerUnit * currentMO.targetQty).toFixed(2)} Kg</span>
-                </div>
-                <div className="flex justify-between items-center mt-2">
-                  <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => {
-                        setSelectedScrapMaterial(item.materialId)
-                        setShowScrapModal(true)
-                      }}
-                      className="px-3 py-1.5 text-xs text-red-500 font-medium border border-red-500/20 rounded bg-red-500/5 hover:bg-red-500/10 transition-colors"
+          {(() => {
+            const product = products.find(p => p.id === currentMO.productId)
+            const routing = product?.routing || []
+            const qcParams = product?.qcParameters || []
+            const currentSeq = currentMO.currentSequence || 1
+            const currentIdx = routing.findIndex(r => r.sequence === currentSeq)
+            const nextStep = currentIdx !== -1 && currentIdx < routing.length - 1 ? routing[currentIdx + 1] : null
+            const nextMachine = nextStep ? machines.find(m => m.id === nextStep.machineId) : null
+
+            const tabs: RightTab[] = isGateStation ? ["bom", "product_info", "qc_params"] : ["bom", "product_info"]
+            const activeRightTab = rightTab
+
+            return (
+              <>
+                {/* Tab bar */}
+                <div className="flex items-center border-b border-border/50 bg-muted/20 shrink-0">
+                  {tabs.map(tab => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setRightTab(tab)}
+                      className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${
+                        activeRightTab === tab 
+                          ? 'text-foreground border-b-2 border-primary' 
+                          : 'text-muted-foreground hover:text-foreground border-b-2 border-transparent'
+                      }`}
                     >
-                      Log Scrap
+                      {tab === "bom" && t("tablet_tab_bom")}
+                      {tab === "product_info" && t("tablet_tab_product_info")}
+                      {tab === "qc_params" && t("tablet_tab_qc_params")}
                     </button>
-                    <button 
-                      onClick={() => setShowRefillModal(true)}
-                      className="px-3 py-1.5 text-xs text-muted-foreground font-medium border border-border rounded bg-background hover:bg-muted transition-colors"
-                    >
-                      Manual Refill
-                    </button>
-                  </div>
+                  ))}
                 </div>
-              </div>
-            )})}
-          </div>
-          
-          {/* QC and Logs Area */}
-          {isGateStation && (
-            <div className="p-4 bg-card border-t border-border/50 flex flex-col gap-3">
-              <div className="flex items-center gap-2 px-2 mb-1">
-                <CheckSquareOffset weight="duotone" className="w-5 h-5 text-primary" />
-                <span className="text-sm font-display font-bold text-foreground">{activeGate?.name}</span>
-              </div>
-              <button 
-                onClick={() => {
-                  setQcPassedCount(currentMO.targetQty)
-                  setShowQcModal(true)
-                }}
-                disabled={currentMO.qcStatus === "DONE"}
-                className="w-full py-3 bg-primary/10 text-primary font-bold rounded-xl border border-primary/20 hover:bg-primary/20 transition-colors flex justify-center items-center gap-2 disabled:opacity-50"
-              >
-                <CheckCircle weight="bold" className="w-5 h-5" />
-                {currentMO.qcStatus === "DONE" ? "Quality Check Passed" : "Perform Quality Check"}
-              </button>
-              <div className="flex justify-between items-center text-xs text-muted-foreground px-2">
-                <span>Status: {currentMO.qcStatus === "DONE" ? "QC DONE" : "QC PENDING"}</span>
-                <span className="font-mono text-amber-500">Target: {currentMO.targetQty} Units</span>
-              </div>
-            </div>
-          )}
+
+                {/* Tab content */}
+                <div className="flex-1 overflow-y-auto">
+                  {/* BOM Tab */}
+                  {activeRightTab === "bom" && (
+                    <div className="p-2">
+                      {currentMO.bom?.lines.map((item, idx) => {
+                        const mat = materials.find(m => m.id === item.materialId)
+                        return (
+                        <div key={idx} className="p-4 border-b border-border/30 last:border-0 flex flex-col gap-2 hover:bg-muted/10 transition-colors rounded-lg">
+                          <div className="flex justify-between items-start">
+                            <div className="flex flex-col">
+                              <span className="font-medium text-foreground">{mat?.name || item.materialId}</span>
+                            </div>
+                            <span className="font-mono text-foreground text-sm font-bold">{(item.quantityPerUnit * currentMO.targetQty).toFixed(2)} Kg</span>
+                          </div>
+                          <div className="flex justify-between items-center mt-2">
+                            <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button 
+                                onClick={() => {
+                                  setSelectedScrapMaterial(item.materialId)
+                                  setShowScrapModal(true)
+                                }}
+                                className="px-3 py-1.5 text-xs text-red-500 font-medium border border-red-500/20 rounded bg-red-500/5 hover:bg-red-500/10 transition-colors"
+                              >
+                                {t("tablet_btn_scrap")}
+                              </button>
+                              <button 
+                                onClick={() => setShowRefillModal(true)}
+                                className="px-3 py-1.5 text-xs text-muted-foreground font-medium border border-border rounded bg-background hover:bg-muted transition-colors"
+                              >
+                                {t("tablet_btn_refill")}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )})}
+                    </div>
+                  )}
+
+                  {/* Product Info Tab */}
+                  {activeRightTab === "product_info" && (
+                    <div className="p-4 flex flex-col gap-5">
+                      {/* Product Image */}
+                      {product?.imageUrl && (
+                        <div className="w-full max-h-40 rounded-xl overflow-hidden border border-border/50 bg-muted/20">
+                          <img 
+                            src={product.imageUrl} 
+                            alt={product.name} 
+                            className="w-full h-full object-contain max-h-40"
+                          />
+                        </div>
+                      )}
+
+                      {/* Product name & SKU */}
+                      <div>
+                        <h4 className="font-display font-bold text-foreground text-base">{product?.name}</h4>
+                        <span className="text-xs font-mono text-muted-foreground">{product?.sku}</span>
+                      </div>
+
+                      {/* Next Machine */}
+                      {nextMachine && !isGateStation && (
+                        <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-xl">
+                          <HardDrives className="w-5 h-5 text-primary shrink-0" weight="duotone" />
+                          <div>
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t("tablet_next_machine")}</span>
+                            <p className="font-bold text-foreground text-sm">{nextMachine.name}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Notice & Indications */}
+                      {product?.notice && (
+                        <div className="flex flex-col gap-2">
+                          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{t("tablet_product_notice")}</span>
+                          <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl text-sm text-foreground leading-relaxed">
+                            {product.notice}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* QC Section at gate stations */}
+                      {isGateStation && (
+                        <div className="border-t border-border/50 pt-4">
+                          <button 
+                            onClick={() => {
+                              setQcPassedCount(currentMO.targetQty)
+                              setShowQcModal(true)
+                            }}
+                            disabled={currentMO.qcStatus === "DONE"}
+                            className="w-full py-3 bg-primary/10 text-primary font-bold rounded-xl border border-primary/20 hover:bg-primary/20 transition-colors flex justify-center items-center gap-2 disabled:opacity-50"
+                          >
+                            <CheckCircle weight="bold" className="w-5 h-5" />
+                            {currentMO.qcStatus === "DONE" ? t("tablet_qc_done") : t("tablet_btn_qc")}
+                          </button>
+                          <div className="flex justify-between items-center text-xs text-muted-foreground mt-2 px-1">
+                            <span>{currentMO.qcStatus === "DONE" ? t("tablet_qc_status_done") : t("tablet_qc_status_pending")}</span>
+                            <span className="font-mono text-amber-500">{t("tablet_qc_target")} {currentMO.targetQty} {t("tablet_units")}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* QC Parameters Tab (Gate Stations only) */}
+                  {activeRightTab === "qc_params" && isGateStation && (
+                    <div className="p-4 flex flex-col gap-3">
+                      <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">{t("tablet_qc_section")}</h4>
+                      {qcParams.length > 0 ? qcParams.map(qc => (
+                        <div key={qc.id} className="p-4 border border-border/50 rounded-xl bg-card">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-bold text-foreground text-sm">{qc.name}</span>
+                            <span className="text-xs font-mono text-muted-foreground">{qc.unit}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">{t("settings_label_min")}: <span className="font-mono text-foreground font-bold">{qc.minValue}</span></span>
+                            <span className="text-muted-foreground">{t("settings_label_max")}: <span className="font-mono text-foreground font-bold">{qc.maxValue}</span></span>
+                            <span className="text-muted-foreground">{t("settings_label_tolerance")}: <span className="font-mono text-foreground font-bold">{qc.tolerance}</span></span>
+                          </div>
+                        </div>
+                      )) : (
+                        <div className="p-6 text-center text-sm text-muted-foreground border border-border/50 border-dashed rounded-xl">
+                          {t("settings_qc_empty")}
+                        </div>
+                      )}
+
+                      {/* QC action button */}
+                      <div className="border-t border-border/50 pt-4 mt-2">
+                        <button 
+                          onClick={() => {
+                            setQcPassedCount(currentMO.targetQty)
+                            setShowQcModal(true)
+                          }}
+                          disabled={currentMO.qcStatus === "DONE"}
+                          className="w-full py-3 bg-primary/10 text-primary font-bold rounded-xl border border-primary/20 hover:bg-primary/20 transition-colors flex justify-center items-center gap-2 disabled:opacity-50"
+                        >
+                          <CheckCircle weight="bold" className="w-5 h-5" />
+                          {currentMO.qcStatus === "DONE" ? t("tablet_qc_done") : t("tablet_btn_qc")}
+                        </button>
+                        <div className="flex justify-between items-center text-xs text-muted-foreground mt-2 px-1">
+                          <span>{currentMO.qcStatus === "DONE" ? t("tablet_qc_status_done") : t("tablet_qc_status_pending")}</span>
+                          <span className="font-mono text-amber-500">{t("tablet_qc_target")} {currentMO.targetQty} {t("tablet_units")}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )
+          })()}
         </div>
 
       </div>
@@ -384,9 +555,9 @@ export default function OperatorTabletPage() {
                   </div>
                   
                   <div>
-                    <h2 className="text-2xl font-display font-bold tracking-tight mb-2">Manual Material Override</h2>
+                    <h2 className="text-2xl font-display font-bold tracking-tight mb-2">{t("tablet_refill_title")}</h2>
                     <p className="text-muted-foreground text-sm leading-relaxed">
-                      You are about to manually inject material into the active line. This bypasses automated batch constraints.
+                      {t("tablet_refill_desc")}
                     </p>
                   </div>
 
@@ -396,13 +567,13 @@ export default function OperatorTabletPage() {
                       onClick={() => setShowRefillModal(false)}
                       className="w-full py-3 bg-amber-500 text-amber-950 font-bold rounded-xl shadow-[0_4px_14px_0_rgba(245,158,11,0.39)] hover:bg-amber-400 transition-colors"
                     >
-                      Acknowledge & Refill
+                      {t("tablet_refill_btn")}
                     </motion.button>
                     <button 
                       onClick={() => setShowRefillModal(false)}
                       className="w-full py-3 text-muted-foreground font-medium hover:text-foreground rounded-xl hover:bg-muted transition-colors"
                     >
-                      Cancel
+                      {t("tablet_refill_cancel")}
                     </button>
                   </div>
                 </div>
@@ -438,15 +609,15 @@ export default function OperatorTabletPage() {
                   </div>
                   
                   <div className="text-center">
-                    <h2 className="text-2xl font-display font-bold tracking-tight mb-2">Record Material Scrap</h2>
+                    <h2 className="text-2xl font-display font-bold tracking-tight mb-2">{t("tablet_scrap_title")}</h2>
                     <p className="text-muted-foreground text-sm leading-relaxed">
-                      Log wasted or contaminated {materials.find(m => m.id === selectedScrapMaterial)?.name || selectedScrapMaterial}. This will deduct from line-side inventory without adding to completed yield.
+                      {t("tablet_scrap_desc")}
                     </p>
                   </div>
 
                   <form onSubmit={handleLogScrap} className="flex flex-col gap-5 mt-2">
                     <div className="flex flex-col gap-2">
-                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Scrap Quantity (Kg)</label>
+                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">{t("tablet_scrap_label")}</label>
                       <input 
                         type="number" 
                         min="0.1" 
@@ -466,14 +637,14 @@ export default function OperatorTabletPage() {
                         disabled={scrapQty <= 0}
                         className="w-full py-3 bg-red-500 text-white font-bold rounded-xl shadow-[0_4px_14px_0_rgba(239,68,68,0.39)] hover:bg-red-600 transition-colors disabled:opacity-50"
                       >
-                        Log Scrap
+                        {t("tablet_scrap_btn")}
                       </motion.button>
                       <button 
                         type="button"
                         onClick={() => setShowScrapModal(false)}
                         className="w-full py-3 text-muted-foreground font-medium hover:text-foreground rounded-xl hover:bg-muted transition-colors"
                       >
-                        Cancel
+                        {t("tablet_scrap_cancel")}
                       </button>
                     </div>
                   </form>
@@ -506,14 +677,14 @@ export default function OperatorTabletPage() {
               <div className="rounded-3xl bg-card border border-border shadow-[0_20px_40px_rgba(0,0,0,0.1)] p-8 overflow-hidden">
                 <h2 className="text-2xl font-display text-foreground font-bold tracking-tight mb-2 flex items-center gap-2">
                   <CheckCircle weight="fill" className="text-emerald-500 w-7 h-7" />
-                  Quality Gate: Batch Release Check
+                  {t("tablet_qc_title")}
                 </h2>
                 <p className="text-sm text-muted-foreground mb-6">
-                  Please verify that all manufactured units have successfully completed visual assessment and weight-tolerance compliance tests.
+                  {t("tablet_qc_desc")}
                 </p>
 
                 <div className="flex flex-col gap-2 mb-6">
-                  <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">Number of Good Units</label>
+                  <label className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">{t("tablet_qc_label_good")}</label>
                   <input 
                     type="number" 
                     min="0" 
@@ -524,7 +695,7 @@ export default function OperatorTabletPage() {
                     autoFocus
                     required
                   />
-                  <span className="text-[10px] text-muted-foreground">Out of {currentMO.targetQty} total produced units</span>
+                  <span className="text-[10px] text-muted-foreground">{t("tablet_qc_outof")} {currentMO.targetQty} {t("tablet_qc_total")}</span>
                 </div>
 
                 <div className="flex flex-col gap-3">
@@ -535,13 +706,13 @@ export default function OperatorTabletPage() {
                     }}
                     className="w-full py-3.5 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors flex justify-center items-center gap-2 shadow-[0_4px_14px_0_rgba(16,185,129,0.39)]"
                   >
-                    Submit QC Check & Proceed
+                    {t("tablet_qc_submit")}
                   </button>
                   <button 
                     onClick={() => setShowQcModal(false)}
                     className="w-full py-3 text-muted-foreground font-medium hover:text-foreground rounded-xl hover:bg-muted transition-colors"
                   >
-                    Cancel
+                    {t("tablet_qc_cancel")}
                   </button>
                 </div>
               </div>

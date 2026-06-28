@@ -3,31 +3,7 @@
 import React from "react"
 import { motion } from "framer-motion"
 import { ChartLineUp, DeviceTablet, ShieldCheck, Factory } from "@phosphor-icons/react"
-
-const features = [
-  {
-    title: "Executive Config Studio",
-    description: "Plan production runs, manage BOMs, and analyze financial KPIs in a centralized dashboard. Gain complete visibility over your entire facility.",
-    icon: ChartLineUp,
-    className: "md:col-span-2 bg-card border border-border shadow-sm p-8 md:p-12 rounded-[2rem] flex flex-col justify-between overflow-hidden relative group",
-    image: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=800&q=80",
-    imageAlt: "Production facility management"
-  },
-  {
-    title: "Resilient Operator Tablet",
-    description: "A touch-first, chaos-resistant interface for the factory floor. Keep your operators focused on output, not fighting with software.",
-    icon: DeviceTablet,
-    className: "md:col-span-1 bg-foreground text-background shadow-sm p-8 md:p-12 rounded-[2rem] flex flex-col justify-between group",
-  },
-  {
-    title: "Independent Quality Gates",
-    description: "Decouple inspections from physical machines. Route work orders through strict quality checkpoints seamlessly, ensuring zero defects.",
-    icon: ShieldCheck,
-    className: "md:col-span-3 bg-card border border-border shadow-sm p-8 md:p-12 rounded-[2rem] flex flex-col md:flex-row items-center gap-8 md:gap-16 overflow-hidden relative group",
-    image: "https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?auto=format&fit=crop&w=1200&q=80",
-    imageAlt: "Quality control inspection"
-  }
-]
+import { useLanguage } from "@/providers/LanguageProvider"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -50,14 +26,41 @@ const itemVariants = {
 }
 
 export function FeatureBentoGrid() {
+  const { t } = useLanguage()
+
+  const features = [
+    {
+      title: t("landing_card_studio_title"),
+      description: t("landing_card_studio_desc"),
+      icon: ChartLineUp,
+      className: "md:col-span-2 bg-card border border-border shadow-sm p-8 md:p-12 rounded-[2rem] flex flex-col justify-between overflow-hidden relative group",
+      image: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=800&q=80",
+      imageAlt: "Production facility management"
+    },
+    {
+      title: t("landing_card_tablet_title"),
+      description: t("landing_card_tablet_desc"),
+      icon: DeviceTablet,
+      className: "md:col-span-1 bg-foreground text-background shadow-sm p-8 md:p-12 rounded-[2rem] flex flex-col justify-between group",
+    },
+    {
+      title: t("landing_card_gates_title"),
+      description: t("landing_card_gates_desc"),
+      icon: ShieldCheck,
+      className: "md:col-span-3 bg-card border border-border shadow-sm p-8 md:p-12 rounded-[2rem] flex flex-col md:flex-row items-center gap-8 md:gap-16 overflow-hidden relative group",
+      image: "https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?auto=format&fit=crop&w=1200&q=80",
+      imageAlt: "Quality control inspection"
+    }
+  ]
+
   return (
     <section className="py-24 md:py-32 px-6 md:px-12 max-w-[1400px] mx-auto w-full">
       <div className="mb-16 md:mb-24 max-w-2xl">
         <h2 className="text-4xl md:text-5xl font-display font-bold tracking-tighter text-foreground leading-tight mb-6">
-          The people's choice for modern manufacturing.
+          {t("landing_feature_title")}
         </h2>
         <p className="text-muted-foreground text-lg leading-relaxed">
-          Whether you're a small business, an individual producer, or a large-scale facility, PROD_CORE adapts to your workflow to maximize productivity and eliminate waste.
+          {t("landing_feature_desc")}
         </p>
       </div>
 

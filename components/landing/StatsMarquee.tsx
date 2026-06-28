@@ -2,7 +2,7 @@
 
 import React from "react"
 import { motion } from "framer-motion"
-import { useLanguage } from "./LanguageProvider"
+import { useLanguage } from "@/providers/LanguageProvider"
 
 export function StatsMarquee() {
   const { t } = useLanguage()

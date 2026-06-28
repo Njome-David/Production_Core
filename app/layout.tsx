@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import { Commissioner, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { MockFeedProductionProvider } from '@/providers/MockFeedProductionProvider'
+import { LanguageProvider } from '@/providers/LanguageProvider'
+import { LangUpdater } from '@/components/LangUpdater'
 import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
 
@@ -39,10 +41,13 @@ export default function RootLayout({
       </head>
       <body className={`${commissioner.variable} ${geistMono.variable} font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          <MockFeedProductionProvider>
-            {children}
-            {process.env.NODE_ENV === 'production' && <Analytics />}
-          </MockFeedProductionProvider>
+          <LanguageProvider>
+            <MockFeedProductionProvider>
+              {children}
+              <LangUpdater />
+              {process.env.NODE_ENV === 'production' && <Analytics />}
+            </MockFeedProductionProvider>
+          </LanguageProvider>
         </ThemeProvider>
       </body>
     </html>

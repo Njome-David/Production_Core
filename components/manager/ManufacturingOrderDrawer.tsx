@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { X, Play, Clock, CheckCircle, Cube, Drop, Hash, ArrowsLeftRight } from "@phosphor-icons/react"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
+import { useLanguage } from "@/providers/LanguageProvider"
 
 interface DrawerProps {
   moId: string
@@ -13,6 +14,7 @@ interface DrawerProps {
 export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
   const { activeMOs, setMOStatus, materials, activeUnit, products, machines, lines, boms } = useMockData()
   const mo = activeMOs.find(m => m.id === moId)
+  const { t } = useLanguage()
   
   // Close on Escape
   useEffect(() => {
@@ -85,9 +87,9 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
             <div className="flex items-center gap-3 mb-1">
               <h2 className="text-2xl text-foreground font-display font-bold uppercase tracking-tight">{mo.id}</h2>
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted text-xs font-medium">
-                {mo.status === "PENDING" && <><Clock className="w-3.5 h-3.5 text-muted-foreground" /><span className="text-muted-foreground">Pending</span></>}
-                {mo.status === "IN_PROGRESS" && <><Play className="w-3.5 h-3.5 text-amber-500" weight="fill" /><span className="text-amber-600">In Progress</span></>}
-                {mo.status === "COMPLETED" && <><CheckCircle className="w-3.5 h-3.5 text-emerald-500" weight="fill" /><span className="text-emerald-600">Completed</span></>}
+                {mo.status === "PENDING" && <><Clock className="w-3.5 h-3.5 text-muted-foreground" /><span className="text-muted-foreground">{t("drawer_status_pending")}</span></>}
+                {mo.status === "IN_PROGRESS" && <><Play className="w-3.5 h-3.5 text-amber-500" weight="fill" /><span className="text-amber-600">{t("drawer_status_inprogress")}</span></>}
+                {mo.status === "COMPLETED" && <><CheckCircle className="w-3.5 h-3.5 text-emerald-500" weight="fill" /><span className="text-emerald-600">{t("drawer_status_completed")}</span></>}
               </div>
             </div>
             <p className="text-muted-foreground text-sm font-medium">{mo.productName}</p>
@@ -104,10 +106,10 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
         <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-8">
           {/* Production Specs */}
           <section className="flex flex-col gap-4">
-            <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Production Specs</h3>
+            <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">{t("drawer_specs")}</h3>
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 rounded-xl border border-border/50 bg-background/50 flex flex-col gap-1">
-                <span className="text-sm text-muted-foreground">Target Volume</span>
+                <span className="text-sm text-muted-foreground">{t("drawer_target_volume")}</span>
                 <span className="text-xl text-foreground font-display font-bold">
                   {Math.round(mo.targetQty * (activeUnit === "units" ? 1 : activeUnit === "tons" ? 1.5 : 1500)).toLocaleString()}{" "}
                   <span className="text-base text-muted-foreground font-normal">
@@ -116,7 +118,7 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
                 </span>
               </div>
               <div className="p-4 rounded-xl border border-border/50 bg-background/50 flex flex-col gap-1">
-                <span className="text-sm text-muted-foreground">Routing Line</span>
+                <span className="text-sm text-muted-foreground">{t("drawer_routing_line")}</span>
                 <span className="text-xl font-display text-foreground font-bold">{mo.routing}</span>
               </div>
               
@@ -124,12 +126,12 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
                 <div className="p-4 rounded-xl border border-border/50 bg-background/50 flex flex-col gap-1 col-span-2">
                   <span className="text-sm text-muted-foreground flex items-center gap-1.5 font-semibold">
                     <CheckCircle className="text-emerald-500 w-4 h-4" weight="fill" />
-                    Quality Check Verification
+                    {t("drawer_qc_verification")}
                   </span>
                   <span className="text-xl text-foreground font-display font-bold">
                     {mo.passedQCBatches !== undefined ? mo.passedQCBatches : mo.targetQty}{" "}
                     <span className="text-base text-muted-foreground font-normal">
-                      out of {mo.targetQty} Batches successfully passed validation
+                      {t("drawer_qc_passed")} {mo.targetQty} {t("drawer_qc_batches")}
                     </span>
                   </span>
                 </div>
@@ -139,28 +141,28 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
 
           {/* Estimated Financials */}
           <section className="flex flex-col gap-4">
-            <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Estimated Financials</h3>
+            <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">{t("drawer_financials")}</h3>
             <div className="grid grid-cols-3 gap-4">
               <div className="p-4 rounded-xl border border-border/50 bg-background/50 flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground font-semibold">Est. Cost</span>
+                <span className="text-xs text-muted-foreground font-semibold">{t("drawer_est_cost")}</span>
                 <span className="text-lg text-red-500 font-display font-bold">
-                  {Math.round(estimatedCost).toLocaleString()} <span className="text-[10px] font-normal text-muted-foreground">FCFA</span>
+                  {Math.round(estimatedCost).toLocaleString()} <span className="text-[10px] font-normal text-muted-foreground">{t("drawer_currency")}</span>
                 </span>
-                <span className="text-[9px] text-muted-foreground leading-tight">Fixed + BOM + Maintenance</span>
+                <span className="text-[9px] text-muted-foreground leading-tight">{t("drawer_cost_breakdown")}</span>
               </div>
               <div className="p-4 rounded-xl border border-border/50 bg-background/50 flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground font-semibold">Est. Revenue</span>
+                <span className="text-xs text-muted-foreground font-semibold">{t("drawer_est_revenue")}</span>
                 <span className="text-lg text-emerald-500 font-display font-bold">
-                  {Math.round(estimatedRevenue).toLocaleString()} <span className="text-[10px] font-normal text-muted-foreground">FCFA</span>
+                  {Math.round(estimatedRevenue).toLocaleString()} <span className="text-[10px] font-normal text-muted-foreground">{t("drawer_currency")}</span>
                 </span>
-                <span className="text-[9px] text-muted-foreground leading-tight">Price per batch</span>
+                <span className="text-[9px] text-muted-foreground leading-tight">{t("drawer_revenue_per_batch")}</span>
               </div>
               <div className="p-4 rounded-xl border border-border/50 bg-background/50 flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground font-semibold">Gross Margin</span>
+                <span className="text-xs text-muted-foreground font-semibold">{t("drawer_gross_margin")}</span>
                 <span className={`text-lg font-display font-bold ${grossMargin >= 0 ? "text-primary" : "text-rose-500"}`}>
-                  {Math.round(grossMargin).toLocaleString()} <span className="text-[10px] font-normal text-muted-foreground">FCFA</span>
+                  {Math.round(grossMargin).toLocaleString()} <span className="text-[10px] font-normal text-muted-foreground">{t("drawer_currency")}</span>
                 </span>
-                <span className="text-[9px] text-muted-foreground font-mono leading-tight">({marginPercentage.toFixed(1)}% yield)</span>
+                <span className="text-[9px] text-muted-foreground font-mono leading-tight">({marginPercentage.toFixed(1)}% {t("drawer_yield")})</span>
               </div>
             </div>
           </section>
@@ -168,15 +170,15 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
           {/* Bill of Materials */}
           <section className="flex flex-col gap-4">
             <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider flex items-center justify-between">
-              <span>Bill of Materials (BOM)</span>
-              <span className="text-foreground">{mo.bom?.lines.length ?? 0} items</span>
+              <span>{t("drawer_bom")}</span>
+              <span className="text-foreground">{mo.bom?.lines.length ?? 0} {t("drawer_bom_items")}</span>
             </h3>
             
             <div className="flex flex-col border border-border/50 rounded-xl overflow-hidden">
               <div className="grid grid-cols-12 gap-2 bg-muted/50 p-3 text-xs font-medium text-muted-foreground">
-                <div className="col-span-6">Material</div>
-                <div className="col-span-3 text-right">Required (Kg)</div>
-                <div className="col-span-3 text-right">Inventory</div>
+                <div className="col-span-6">{t("drawer_th_material")}</div>
+                <div className="col-span-3 text-right">{t("drawer_th_required")}</div>
+                <div className="col-span-3 text-right">{t("drawer_th_inventory")}</div>
               </div>
               
               <div className="flex flex-col divide-y divide-border/50">
@@ -194,7 +196,7 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
                     <div className="col-span-3 text-right text-muted-foreground flex items-center justify-end gap-1 font-mono">
                       {/* For mockup: show a generic stock level, or green check if sufficient */}
                       <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1"></div>
-                      Available
+                      {t("drawer_stock_available")}
                     </div>
                   </div>
                 )})}
@@ -209,7 +211,7 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
             onClick={onClose}
             className="px-4 py-2 text-sm font-medium text-foreground hover:bg-muted rounded-md transition-colors border border-transparent"
           >
-            Cancel
+            {t("drawer_cancel")}
           </button>
           
           {mo.status === "PENDING" && (
@@ -218,7 +220,7 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
               className="px-6 py-2 bg-muted text-muted-foreground text-sm font-medium rounded-md cursor-not-allowed flex items-center gap-2"
             >
               <Clock className="w-4 h-4" />
-              Awaiting Operator Action
+              {t("drawer_badge_pending")}
             </button>
           )}
 
@@ -228,7 +230,7 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
               className="px-6 py-2 bg-muted text-muted-foreground text-sm font-medium rounded-md cursor-not-allowed flex items-center gap-2"
             >
               <Play className="w-4 h-4" />
-              Execution in Progress
+              {t("drawer_badge_inprogress")}
             </button>
           )}
         </div>

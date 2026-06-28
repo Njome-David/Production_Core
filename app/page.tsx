@@ -4,7 +4,7 @@ import { Header } from "@/components/landing/Header"
 import { HeroSection } from "@/components/landing/HeroSection"
 import { StatsMarquee } from "@/components/landing/StatsMarquee"
 import { DetailedModules } from "@/components/landing/DetailedModules"
-import { LanguageProvider, useLanguage } from "@/components/landing/LanguageProvider"
+import { useLanguage } from "@/providers/LanguageProvider"
 import { motion } from "framer-motion"
 import Link from "next/link"
 import { ArrowRight, Sparkle } from "@phosphor-icons/react"
@@ -123,9 +123,5 @@ function LandingPageContent() {
 
 
 export default function Home() {
-  return (
-    <LanguageProvider>
-      <LandingPageContent />
-    </LanguageProvider>
-  )
+  return <LandingPageContent />
 }

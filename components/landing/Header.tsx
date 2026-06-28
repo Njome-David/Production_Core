@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Buildings, CaretDown, Globe } from "@phosphor-icons/react"
 import Link from "next/link"
 import { ThemeToggle } from "./ThemeToggle"
-import { useLanguage } from "./LanguageProvider"
+import { useLanguage } from "@/providers/LanguageProvider"
 
 type Language = "en" | "fr" | "es"
 

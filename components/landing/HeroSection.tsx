@@ -4,7 +4,7 @@ import React, { useRef } from "react"
 import { motion, useScroll, useTransform } from "framer-motion"
 import { ArrowRight, Buildings } from "@phosphor-icons/react"
 import Link from "next/link"
-import { useLanguage } from "./LanguageProvider"
+import { useLanguage } from "@/providers/LanguageProvider"
 
 export function HeroSection() {
   const containerRef = useRef<HTMLDivElement>(null)

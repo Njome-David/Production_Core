@@ -3,11 +3,12 @@
 import React, { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
+import { useLanguage } from "@/providers/LanguageProvider"
 import { Gear, Plus, Package, Factory, HardDrives, CaretRight, X, FloppyDisk, Drop, Cube, Trash, CaretUp, CaretDown, CheckSquareOffset } from "@phosphor-icons/react"
 import { QCParameter, RoutingStep, QualityGate } from "@/lib/mock-db"
 
 type ConfigTab = "products" | "machines" | "quality_gates" | "lines"
-type ProductTab = "profile" | "routing"
+type ProductTab = "profile" | "routing" | "notice"
 
 export default function SettingsPage() {
   const { 
@@ -26,6 +27,7 @@ export default function SettingsPage() {
     addQualityGate,
     updateQualityGate
   } = useMockData()
+  const { t } = useLanguage()
   
   const [activeTab, setActiveTab] = useState<ConfigTab>("products")
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
@@ -39,7 +41,7 @@ export default function SettingsPage() {
   const [bomUnit, setBomUnit] = useState<'kg' | 'pct'>('kg')
   const [routingRows, setRoutingRows] = useState<RoutingStep[]>([])
   const [qcRows, setQcRows] = useState<QCParameter[]>([])
-  const [productQualityGateRows, setProductQualityGateRows] = useState<{ sequenceAfter: number, gateId: string }[]>([])
+  const [productQualityGateRows, setProductQualityGateRows] = useState<{ sequenceAfter: number, gateId: string, timeInHours?: number }[]>([])
   
   const [machineForm, setMachineForm] = useState<any>(null)
   const [qualityGateForm, setQualityGateForm] = useState<any>(null)
@@ -84,7 +86,7 @@ export default function SettingsPage() {
     } else if (activeTab === "quality_gates") {
       const isNew = selectedEntityId === "new"
       const gate = isNew
-        ? { id: `gate_${Date.now()}`, name: "", description: "", type: "VISUAL", inspectionType: "", serviceProvider: "" }
+        ? { id: `gate_${Date.now()}`, name: "", description: "", type: "VISUAL", inspectionType: "", serviceProvider: "", opCostPerHour: 0, operationRate: 0 }
         : qualityGates.find(g => g.id === selectedEntityId)
       
       setQualityGateForm(gate ? { ...gate } : null)
@@ -226,6 +228,13 @@ export default function SettingsPage() {
       const mac = machines.find(m => m.id === row.machineId)
       const macOpCost = mac?.opCostPerHour || 0
       totalOpCost += (row.usagePercentage / 100) * macOpCost * (row.timeInHours || 1)
+      
+      const gateEntry = productQualityGateRows.find(g => g.sequenceAfter === row.sequence)
+      if (gateEntry) {
+        const gate = qualityGates.find(q => q.id === gateEntry.gateId)
+        const gateHours = gateEntry.timeInHours || 0.25
+        totalOpCost += (gate?.opCostPerHour || 0) * gateHours
+      }
     })
     
     const costPrice = totalMaterialsCost + totalOpCost
@@ -309,6 +318,13 @@ export default function SettingsPage() {
     const mac = machines.find(m => m.id === row.machineId)
     const macOpCost = mac?.opCostPerHour || 0
     totalOpCost += (row.usagePercentage / 100) * macOpCost * (row.timeInHours || 1)
+    
+    const gateEntry = productQualityGateRows.find(g => g.sequenceAfter === row.sequence)
+    if (gateEntry) {
+      const gate = qualityGates.find(q => q.id === gateEntry.gateId)
+      const gateHours = gateEntry.timeInHours || 0.25
+      totalOpCost += (gate?.opCostPerHour || 0) * gateHours
+    }
   })
   const currentCostPrice = totalMaterialsCost + totalOpCost
   const currentMargin = productForm?.targetMargin || 0
@@ -330,8 +346,8 @@ export default function SettingsPage() {
                 <span className="text-xs font-mono text-muted-foreground uppercase">{prod.sku}</span>
                 <p className="font-display font-bold text-foreground mt-1">{prod.name}</p>
                 <div className="flex gap-2 mt-2">
-                  <span className="text-xs bg-muted px-2 py-0.5 rounded text-muted-foreground">{prod.routing?.length || 0} Routing Steps</span>
-                  <span className="text-xs bg-muted px-2 py-0.5 rounded text-muted-foreground">{prod.qcParameters?.length || 0} QC Params</span>
+                  <span className="text-xs bg-muted px-2 py-0.5 rounded text-muted-foreground">{prod.routing?.length || 0} {t("settings_badge_routing")}</span>
+                  <span className="text-xs bg-muted px-2 py-0.5 rounded text-muted-foreground">{prod.qcParameters?.length || 0} {t("settings_badge_qc")}</span>
                 </div>
               </div>
               <CaretRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
@@ -430,16 +446,43 @@ export default function SettingsPage() {
               onClick={() => setProductActiveTab("profile")}
               className={`pb-3 px-2 text-sm font-bold border-b-2 transition-colors ${productActiveTab === 'profile' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
             >
-              Product Profile
+              {t("settings_subtab_profile")}
             </button>
             <button 
               type="button"
               onClick={() => setProductActiveTab("routing")}
               className={`pb-3 px-2 text-sm font-bold border-b-2 transition-colors ${productActiveTab === 'routing' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
             >
-              Routing Information
+              {t("settings_subtab_routing")}
+            </button>
+            <button 
+              type="button"
+              onClick={() => setProductActiveTab("notice")}
+              className={`pb-3 px-2 text-sm font-bold border-b-2 transition-colors ${productActiveTab === 'notice' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              {t("settings_subtab_notice")}
             </button>
           </div>
+
+          {/* Product header with image — visible across all tabs */}
+          {productForm.imageUrl || productForm.name ? (
+            <div className="flex items-center gap-5 pb-2 border-b border-border/20 mb-2">
+              {productForm.imageUrl && (
+                <div className="w-20 h-16 rounded-xl overflow-hidden bg-muted shrink-0 border border-border/50">
+                  <img 
+                    src={productForm.imageUrl} 
+                    alt={productForm.name || "Product"} 
+                    className="w-full h-full object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                  />
+                </div>
+              )}
+              <div>
+                <p className="font-display font-bold text-lg text-foreground">{productForm.name || t("settings_subtab_profile")}</p>
+                <p className="text-xs font-mono text-muted-foreground">{productForm.sku}</p>
+              </div>
+            </div>
+          ) : null}
 
           {productActiveTab === "profile" && (
             <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -447,7 +490,7 @@ export default function SettingsPage() {
               <section className="flex flex-col gap-4">
                 <div className="grid grid-cols-2 gap-6">
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-bold text-muted-foreground uppercase">SKU</label>
+                    <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_sku")}</label>
                     <input 
                       type="text" 
                       value={productForm.sku || ""} 
@@ -457,7 +500,7 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-bold text-muted-foreground uppercase">Display Name</label>
+                    <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_name")}</label>
                     <input 
                       type="text" 
                       value={productForm.name || ""} 
@@ -467,7 +510,7 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-bold text-muted-foreground uppercase">Target Margin (%)</label>
+                    <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_margin")}</label>
                     <input 
                       type="number" 
                       value={productForm.targetMargin || 0} 
@@ -482,19 +525,19 @@ export default function SettingsPage() {
               {/* Cost Summary Box */}
               <section className="bg-primary/5 border border-primary/20 rounded-2xl p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="flex flex-col">
-                  <span className="text-xs font-bold text-muted-foreground uppercase">Total Materials</span>
+                  <span className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_total_materials")}</span>
                   <span className="text-xl font-mono font-bold text-foreground">{totalMaterialsCost.toFixed(2)}</span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-xs font-bold text-muted-foreground uppercase">Total Operations</span>
+                  <span className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_total_ops")}</span>
                   <span className="text-xl font-mono font-bold text-foreground">{totalOpCost.toFixed(2)}</span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-xs font-bold text-muted-foreground uppercase">Cost Price</span>
+                  <span className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_cost_price")}</span>
                   <span className="text-xl font-mono font-bold text-foreground">{currentCostPrice.toFixed(2)}</span>
                 </div>
                 <div className="flex flex-col border-l-2 border-primary/20 pl-4">
-                  <span className="text-xs font-bold text-primary uppercase">Suggested Selling Price</span>
+                  <span className="text-xs font-bold text-primary uppercase">{t("settings_label_sell_price")}</span>
                   <span className="text-2xl font-mono font-bold text-primary">{currentSuggestedPrice.toFixed(2)}</span>
                 </div>
               </section>
@@ -502,10 +545,10 @@ export default function SettingsPage() {
               {/* BOM Architect */}
               <section className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-display font-bold text-foreground uppercase tracking-wider">Bill of Materials</h3>
+                  <h3 className="text-sm font-display font-bold text-foreground uppercase tracking-wider">{t("settings_section_bom")}</h3>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 bg-muted/30 border border-border/50 rounded-lg px-3 py-1.5 h-[34px]">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase whitespace-nowrap">Final Mass (Kg):</label>
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t("settings_label_final_mass")}</label>
                       <input 
                         type="number" 
                         value={bomUnit === 'kg' ? bomSumKg.toFixed(2) : (productForm.finalMass || 100)} 
@@ -516,25 +559,25 @@ export default function SettingsPage() {
                       />
                     </div>
                     <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-1 border border-border/50">
-                      <button type="button" onClick={() => setBomUnit('kg')} className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${bomUnit === 'kg' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Kg Mode</button>
-                      <button type="button" onClick={() => setBomUnit('pct')} className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${bomUnit === 'pct' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Percentage Mode</button>
+                      <button type="button" onClick={() => setBomUnit('kg')} className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${bomUnit === 'kg' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{t("settings_mode_kg")}</button>
+                      <button type="button" onClick={() => setBomUnit('pct')} className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${bomUnit === 'pct' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{t("settings_mode_pct")}</button>
                     </div>
                     <button 
                       type="button" 
                       onClick={() => setShowAddMaterialModal(true)}
                       className="text-xs text-primary hover:text-primary/80 font-bold transition-colors flex items-center gap-1 whitespace-nowrap"
                     >
-                      <Plus weight="bold"/> Add Material
+                      <Plus weight="bold"/> {t("settings_btn_add_material")}
                     </button>
                   </div>
                 </div>
                 
                 <div className="border border-border/50 rounded-xl overflow-hidden">
                   <div className="grid grid-cols-12 gap-2 bg-muted/30 p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                    <div className="col-span-4">Material Name</div>
-                    <div className="col-span-3 text-right">Quantity</div>
-                    <div className="col-span-2 text-right">Unit Price</div>
-                    <div className="col-span-2 text-right">Cost Price</div>
+                    <div className="col-span-4">{t("settings_th_material")}</div>
+                    <div className="col-span-3 text-right">{t("settings_th_qty")}</div>
+                    <div className="col-span-2 text-right">{t("settings_th_unit_price")}</div>
+                    <div className="col-span-2 text-right">{t("settings_th_cost_price")}</div>
                     <div className="col-span-1 text-right"></div>
                   </div>
                   <div className="divide-y divide-border/50">
@@ -579,10 +622,10 @@ export default function SettingsPage() {
                       )
                     })}
                     {bomRows.length === 0 && (
-                      <div className="p-8 text-center text-sm text-muted-foreground bg-card">No BOM components.</div>
+                      <div className="p-8 text-center text-sm text-muted-foreground bg-card">{t("settings_bom_empty")}</div>
                     )}
                     <div className="grid grid-cols-12 gap-2 p-4 bg-muted/20 border-t border-border/50">
-                      <div className="col-span-9 text-right text-xs font-bold text-muted-foreground uppercase">Total Materials Cost</div>
+                      <div className="col-span-9 text-right text-xs font-bold text-muted-foreground uppercase">{t("settings_total_materials_cost")}</div>
                       <div className="col-span-2 text-right font-mono font-bold text-foreground">{totalMaterialsCost.toFixed(2)}</div>
                     </div>
                   </div>
@@ -597,24 +640,24 @@ export default function SettingsPage() {
               {/* Machine Routing */}
               <section className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-display font-bold text-foreground uppercase tracking-wider">Machine Routing Sequence</h3>
+                  <h3 className="text-sm font-display font-bold text-foreground uppercase tracking-wider">{t("settings_section_routing")}</h3>
                   <button 
                     type="button" 
                     onClick={() => setShowAssignMachineModal(true)}
                     className="text-xs text-primary hover:text-primary/80 font-bold transition-colors flex items-center gap-1"
                   >
-                    <Plus weight="bold"/> Add Machine
+                     <Plus weight="bold"/> {t("settings_btn_add_machine")}
                   </button>
                 </div>
                 
                 <div className="border border-border/50 rounded-xl overflow-hidden">
                   <div className="grid grid-cols-12 gap-2 bg-muted/30 p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                    <div className="col-span-1">Seq</div>
-                    <div className="col-span-3">Machine Name</div>
-                    <div className="col-span-2 text-right">Time/Hr</div>
-                    <div className="col-span-2 text-right">% Use</div>
-                    <div className="col-span-2 text-right">Op Cost</div>
-                    <div className="col-span-2 text-right">Actions</div>
+                    <div className="col-span-1">{t("settings_th_seq")}</div>
+                    <div className="col-span-3">{t("settings_th_machine")}</div>
+                    <div className="col-span-2 text-right">{t("settings_th_time")}</div>
+                    <div className="col-span-2 text-right">{t("settings_th_use_pct")}</div>
+                    <div className="col-span-2 text-right">{t("settings_th_op_cost")}</div>
+                    <div className="col-span-2 text-right">{t("settings_th_actions")}</div>
                   </div>
                   <div className="divide-y divide-border/50">
                     {routingRows.map((route, idx) => {
@@ -676,7 +719,7 @@ export default function SettingsPage() {
                               <div>
                                 <p className="font-bold text-foreground text-sm flex items-center gap-2">
                                   {actualGate.name}
-                                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-primary text-primary-foreground">Quality Gate</span>
+                                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-primary text-primary-foreground">{t("settings_badge_quality_gate")}</span>
                                 </p>
                                 <p className="text-xs text-muted-foreground">{actualGate.inspectionType} • {actualGate.serviceProvider}</p>
                               </div>
@@ -690,10 +733,10 @@ export default function SettingsPage() {
                     )
                   })}
                     {routingRows.length === 0 && (
-                      <div className="p-8 text-center text-sm text-muted-foreground bg-card">No machines in routing sequence.</div>
+                      <div className="p-8 text-center text-sm text-muted-foreground bg-card">{t("settings_routing_empty")}</div>
                     )}
                     <div className="grid grid-cols-12 gap-2 p-4 bg-muted/20 border-t border-border/50">
-                      <div className="col-span-6 text-right text-xs font-bold text-muted-foreground uppercase">Total Operation Costs</div>
+                      <div className="col-span-6 text-right text-xs font-bold text-muted-foreground uppercase">{t("settings_total_op_costs")}</div>
                       <div className="col-span-3 text-right font-mono font-bold text-foreground">{totalOpCost.toFixed(2)}</div>
                     </div>
                   </div>
@@ -703,13 +746,13 @@ export default function SettingsPage() {
               {/* QC Parameters */}
               <section className="flex flex-col gap-4 mt-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-display font-bold text-foreground uppercase tracking-wider">Quality Control Parameters</h3>
+                  <h3 className="text-sm font-display font-bold text-foreground uppercase tracking-wider">{t("settings_section_qc")}</h3>
                   <button 
                     type="button" 
                     onClick={handleAddQC}
                     className="text-xs text-primary hover:text-primary/80 font-bold transition-colors flex items-center gap-1"
                   >
-                    <Plus weight="bold"/> Add Parameter
+                    <Plus weight="bold"/> {t("settings_btn_add_param")}
                   </button>
                 </div>
                 
@@ -718,42 +761,101 @@ export default function SettingsPage() {
                     <div key={qc.id} className="p-4 border border-border/50 rounded-xl bg-card flex items-start gap-4">
                       <div className="flex-1 grid grid-cols-2 md:grid-cols-5 gap-3">
                         <div className="col-span-2 md:col-span-2 flex flex-col gap-1">
-                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Parameter Name</label>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">{t("settings_label_param")}</label>
                           <input type="text" value={qc.name} onChange={e => handleUpdateQC(idx, 'name', e.target.value)} className="w-full px-3 py-1.5 bg-background text-foreground border border-border rounded text-sm"/>
                         </div>
                         <div className="col-span-1 flex flex-col gap-1">
-                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Min</label>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">{t("settings_label_min")}</label>
                           <input type="number" value={qc.minValue} onChange={e => handleUpdateQC(idx, 'minValue', parseFloat(e.target.value)||0)} className="w-full px-3 py-1.5 bg-background text-foreground border border-border rounded font-mono text-sm"/>
                         </div>
                         <div className="col-span-1 flex flex-col gap-1">
-                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Max</label>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">{t("settings_label_max")}</label>
                           <input type="number" value={qc.maxValue} onChange={e => handleUpdateQC(idx, 'maxValue', parseFloat(e.target.value)||0)} className="w-full px-3 py-1.5 bg-background text-foreground border border-border rounded font-mono text-sm"/>
                         </div>
                         <div className="col-span-1 flex flex-col gap-1">
-                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Unit</label>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">{t("settings_label_unit")}</label>
                           <input type="text" value={qc.unit} onChange={e => handleUpdateQC(idx, 'unit', e.target.value)} className="w-full px-3 py-1.5 bg-background text-foreground border border-border rounded text-sm"/>
                         </div>
                         <div className="col-span-2 md:col-span-2 flex flex-col gap-1">
-                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Tolerance</label>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">{t("settings_label_tolerance")}</label>
                           <input type="number" step="0.1" value={qc.tolerance} onChange={e => handleUpdateQC(idx, 'tolerance', parseFloat(e.target.value)||0)} className="w-full px-3 py-1.5 bg-background text-foreground border border-border rounded font-mono text-sm"/>
                         </div>
                       </div>
                       <button type="button" onClick={() => handleRemoveQC(idx)} className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg mt-5"><Trash className="w-5 h-5"/></button>
                     </div>
                   ))}
-                  {qcRows.length === 0 && (
-                    <div className="p-6 text-center text-sm text-muted-foreground border border-border/50 border-dashed rounded-xl">No QC parameters defined.</div>
-                  )}
+                    {qcRows.length === 0 && (
+                      <div className="p-6 text-center text-sm text-muted-foreground border border-border/50 border-dashed rounded-xl">{t("settings_qc_empty")}</div>
+                    )}
                 </div>
               </section>
 
             </div>
           )}
 
+          {productActiveTab === "notice" && (
+            <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <section className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_image_url")}</label>
+                  <input 
+                    type="file" 
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      const reader = new FileReader()
+                      reader.onload = (ev) => {
+                        const dataUrl = ev.target?.result as string
+                        setProductForm({ ...productForm, imageUrl: dataUrl })
+                      }
+                      reader.readAsDataURL(file)
+                    }}
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer" 
+                  />
+                  <span className="text-[10px] text-muted-foreground">{t("settings_image_size_hint")}</span>
+                </div>
+
+                {(productForm.imageUrl) && (
+                  <div className="relative w-full max-w-[400px] max-h-[300px] rounded-xl overflow-hidden border border-border/50 bg-muted/30">
+                    <img 
+                      src={productForm.imageUrl} 
+                      alt="Preview" 
+                      className="w-full h-full object-contain max-h-[300px]"
+                      onError={(e) => { 
+                        (e.target as HTMLImageElement).src = ''; 
+                        (e.target as HTMLImageElement).classList.add('hidden');
+                      }}
+                    />
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setProductForm({ ...productForm, imageUrl: "" })}
+                  className="text-xs text-red-500 hover:text-red-400 font-medium transition-colors self-start"
+                >
+                  {t("settings_btn_remove_image")}
+                </button>
+              </section>
+
+              <section className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_notice")}</label>
+                  <textarea 
+                    value={productForm.notice || ""} 
+                    onChange={(e) => setProductForm({ ...productForm, notice: e.target.value })}
+                    placeholder={t("settings_notice_placeholder")}
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground min-h-[160px] resize-y" 
+                  />
+                </div>
+              </section>
+            </div>
+          )}
+
           <div className="mt-auto pt-6 border-t border-border/50">
             <button type="submit" className="w-full py-4 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex justify-center items-center gap-2 text-lg">
               <FloppyDisk className="w-6 h-6" />
-              {isNew ? "Create Product" : "Save Profile & Routing"}
+              {isNew ? t("settings_btn_create_product") : t("settings_btn_save_product")}
             </button>
           </div>
         </form>
@@ -769,7 +871,7 @@ export default function SettingsPage() {
 
             <div className="grid grid-cols-2 gap-6">
               <div className="flex flex-col gap-2 col-span-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Machine Name</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_machine_name")}</label>
                 <input 
                   type="text" 
                   value={machineForm.name || ""} 
@@ -779,31 +881,31 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Type / Category</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_type")}</label>
                 <input 
                   type="text" 
                   value={machineForm.type || ""} 
                   onChange={(e) => setMachineForm({ ...machineForm, type: e.target.value })}
                   className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground"
-                  placeholder="e.g. MIXER, PACKAGER"
+                  placeholder={t("settings_placeholder_type")}
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Current State</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_state")}</label>
                 <select 
                   value={machineForm.state || "IDLE"} 
                   onChange={(e) => setMachineForm({ ...machineForm, state: e.target.value })}
                   className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm appearance-none text-foreground font-bold"
                 >
-                  <option value="IDLE">Idle</option>
-                  <option value="RUNNING">Running</option>
-                  <option value="MAINTENANCE">Maintenance</option>
-                  <option value="OFFLINE">Offline</option>
+                  <option value="IDLE">{t("settings_state_idle")}</option>
+                  <option value="RUNNING">{t("settings_state_running")}</option>
+                  <option value="MAINTENANCE">{t("settings_state_maintenance")}</option>
+                  <option value="OFFLINE">{t("settings_state_offline")}</option>
                 </select>
               </div>
               
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-bold text-muted-foreground uppercase">Power Rating (kW)</label>
+                    <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_power")}</label>
                     <input 
                       type="number" 
                       step="0.1" 
@@ -813,17 +915,17 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div className="flex flex-col gap-2 col-span-2">
-                    <label className="text-xs font-bold text-muted-foreground uppercase">Technical Specifications</label>
+                    <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_specs")}</label>
                     <textarea 
                       value={machineForm.technicalSpecs || ""} 
                       onChange={(e) => setMachineForm({ ...machineForm, technicalSpecs: e.target.value })}
                       className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground min-h-[80px]" 
-                      placeholder="e.g. Blade diameter: 400mm, Max speed: 2000 RPM"
+                      placeholder={t("settings_placeholder_specs")}
                     />
                   </div>
 
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Base Maint. Cost/Hr</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_maint_cost")}</label>
                 <input 
                   type="number" 
                   step="1" 
@@ -834,7 +936,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Op Cost / Hr</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_op_cost")}</label>
                 <input 
                   type="number" 
                   step="1" 
@@ -845,7 +947,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Max Throughput / Hr</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_throughput")}</label>
                 <input 
                   type="number" 
                   step="0.1" 
@@ -861,7 +963,7 @@ export default function SettingsPage() {
           <div className="mt-auto pt-6 border-t border-border/50">
             <button type="submit" className="w-full py-4 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex justify-center items-center gap-2 text-lg">
               <FloppyDisk className="w-6 h-6" />
-              {isNew ? "Register Machine" : "Update Machine Config"}
+              {isNew ? t("settings_btn_register_machine") : t("settings_btn_update_machine")}
             </button>
           </div>
         </form>
@@ -875,31 +977,39 @@ export default function SettingsPage() {
           <section className="flex flex-col gap-6">
             <div className="grid grid-cols-2 gap-6">
               <div className="flex flex-col gap-2 col-span-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Gate Name</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_gate_name")}</label>
                 <input type="text" value={qualityGateForm.name || ""} onChange={(e) => setQualityGateForm({ ...qualityGateForm, name: e.target.value })} required className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground" />
               </div>
               <div className="flex flex-col gap-2 col-span-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Description</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_gate_desc")}</label>
                 <textarea value={qualityGateForm.description || ""} onChange={(e) => setQualityGateForm({ ...qualityGateForm, description: e.target.value })} className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground min-h-[80px]" />
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Gate Type</label>
-                <input type="text" value={qualityGateForm.type || ""} onChange={(e) => setQualityGateForm({ ...qualityGateForm, type: e.target.value })} className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground" placeholder="e.g. VISUAL, CHEMICAL" />
+                <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_gate_type")}</label>
+                <input type="text" value={qualityGateForm.type || ""} onChange={(e) => setQualityGateForm({ ...qualityGateForm, type: e.target.value })} className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground" placeholder={t("settings_placeholder_gate_type")} />
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Inspection Type</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_inspection")}</label>
                 <input type="text" value={qualityGateForm.inspectionType || ""} onChange={(e) => setQualityGateForm({ ...qualityGateForm, inspectionType: e.target.value })} className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground" />
               </div>
               <div className="flex flex-col gap-2 col-span-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Service Provider</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_provider")}</label>
                 <input type="text" value={qualityGateForm.serviceProvider || ""} onChange={(e) => setQualityGateForm({ ...qualityGateForm, serviceProvider: e.target.value })} className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_op_cost")}</label>
+                <input type="number" step="1" value={qualityGateForm.opCostPerHour || 0} onChange={(e) => setQualityGateForm({ ...qualityGateForm, opCostPerHour: parseFloat(e.target.value) || 0 })} className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase">{t("settings_label_throughput")}</label>
+                <input type="number" step="0.1" value={qualityGateForm.operationRate || 0} onChange={(e) => setQualityGateForm({ ...qualityGateForm, operationRate: parseFloat(e.target.value) || 0 })} className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-foreground" />
               </div>
             </div>
           </section>
           <div className="mt-auto pt-6 border-t border-border/50">
             <button type="submit" className="w-full py-4 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex justify-center items-center gap-2 text-lg">
               <FloppyDisk className="w-6 h-6" />
-              {isNew ? "Register Gate" : "Update Gate Config"}
+              {isNew ? t("settings_btn_register_gate") : t("settings_btn_update_gate")}
             </button>
           </div>
         </form>
@@ -922,14 +1032,14 @@ export default function SettingsPage() {
         >
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
             <div>
-              <h1 className="text-4xl font-display text-foreground font-bold tracking-tight mb-2">Config Studio</h1>
-              <p className="text-muted-foreground text-lg">Manage Product Blueprints and the Factory Machine Roster.</p>
+              <h1 className="text-4xl font-display text-foreground font-bold tracking-tight mb-2">{t("settings_title")}</h1>
+              <p className="text-muted-foreground text-lg">{t("settings_desc")}</p>
             </div>
             
             {activeTab !== "lines" && (
               <button onClick={handleCreateNew} className="flex items-center gap-2 bg-foreground text-background px-4 py-2.5 rounded-lg font-medium hover:bg-foreground/90 transition-colors whitespace-nowrap self-start md:self-auto shadow-md">
                 <Plus weight="bold" className="w-4 h-4" />
-                Create New
+                {t("settings_btn_create")}
               </button>
             )}
           </div>
@@ -941,28 +1051,28 @@ export default function SettingsPage() {
               className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'products' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
             >
               <Package className="w-5 h-5" />
-              Product Profiles
+              {t("settings_tab_products")}
             </button>
             <button 
               onClick={() => { setActiveTab("machines"); setIsDrawerOpen(false) }}
               className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'machines' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
             >
               <HardDrives className="w-5 h-5" />
-              Machine Roster
+              {t("settings_tab_machines")}
             </button>
             <button 
               onClick={() => { setActiveTab("quality_gates"); setIsDrawerOpen(false) }}
               className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'quality_gates' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
             >
               <CheckSquareOffset className="w-5 h-5" />
-              Quality Gates
+              {t("settings_tab_gates")}
             </button>
             <button 
               onClick={() => { setActiveTab("lines"); setIsDrawerOpen(false) }}
               className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'lines' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
             >
               <Factory className="w-5 h-5" />
-              Production Lines
+              {t("settings_tab_lines")}
             </button>
           </div>
 
@@ -997,7 +1107,7 @@ export default function SettingsPage() {
               {/* Modal Header */}
               <div className="flex items-center justify-between px-8 py-6 border-b border-border/50 bg-muted/10">
                 <h2 className="text-2xl font-display font-bold text-foreground">
-                  {activeTab === "products" ? "Configure Product Blueprint" : "Configure Machine Unit"}
+                  {activeTab === "products" ? t("settings_modal_product") : t("settings_modal_machine")}
                 </h2>
                 <button 
                   onClick={closeDrawer}
@@ -1048,17 +1158,17 @@ export default function SettingsPage() {
                   </button>
                 </div>
                 
-                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">Add BOM Material</h2>
+                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">{t("settings_modal_bom_title")}</h2>
                 
                 <div className="flex flex-col gap-5 mt-6">
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase">Select Material</label>
+                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase">{t("settings_label_select_material")}</label>
                     <select
                       value={newMaterialId}
                       onChange={(e) => setNewMaterialId(e.target.value)}
                       className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary transition-all text-foreground appearance-none text-sm font-medium"
                     >
-                      <option value="" disabled>-- Choose a Material --</option>
+                      <option value="" disabled>{t("settings_placeholder_choose_material")}</option>
                       {materials.map(m => (
                         <option key={m.id} value={m.id}>{m.name}</option>
                       ))}
@@ -1067,7 +1177,7 @@ export default function SettingsPage() {
                   
                   <div className="flex gap-4">
                     <div className="flex-1 flex flex-col gap-2">
-                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase">Quantity</label>
+                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase">{t("settings_label_qty")}</label>
                       <input
                         type="number"
                         step="0.01"
@@ -1086,7 +1196,7 @@ export default function SettingsPage() {
                   onClick={handleAddMaterialRow}
                   className="w-full mt-8 py-3.5 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 disabled:opacity-50 transition-all text-sm flex justify-center items-center gap-2"
                 >
-                  Add to BOM
+                  {t("settings_btn_add_to_bom")}
                 </button>
               </div>
             </motion.div>
@@ -1126,17 +1236,17 @@ export default function SettingsPage() {
                   </button>
                 </div>
                 
-                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">Add to Routing</h2>
+                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">{t("settings_modal_routing_title")}</h2>
                 
                 <div className="flex flex-col gap-5 mt-6">
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase">Select Machine</label>
+                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase">{t("settings_label_select_machine")}</label>
                     <select
                       value={newRoutingMachineId}
                       onChange={(e) => setNewRoutingMachineId(e.target.value)}
                       className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary transition-all text-foreground appearance-none text-sm font-medium"
                     >
-                      <option value="" disabled>-- Choose a Machine --</option>
+                      <option value="" disabled>{t("settings_placeholder_choose_machine")}</option>
                       {machines.map(m => (
                         <option key={m.id} value={m.id}>{m.name} ({m.type})</option>
                       ))}
@@ -1145,7 +1255,7 @@ export default function SettingsPage() {
                   
                   <div className="flex gap-4">
                     <div className="flex-1 flex flex-col gap-2">
-                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase">Time (Hours)</label>
+                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase">{t("settings_label_hours")}</label>
                       <input
                         type="number"
                         step="0.1"
@@ -1156,7 +1266,7 @@ export default function SettingsPage() {
                       />
                     </div>
                     <div className="flex-1 flex flex-col gap-2">
-                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase">% Use</label>
+                      <label className="text-xs font-mono font-bold text-muted-foreground uppercase">{t("settings_label_use_pct")}</label>
                       <input
                         type="number"
                         step="1"
@@ -1176,7 +1286,7 @@ export default function SettingsPage() {
                   onClick={handleAddRouting}
                   className="w-full mt-8 py-3.5 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 disabled:opacity-50 transition-all text-sm flex justify-center items-center gap-2"
                 >
-                  Append to Sequence
+                  {t("settings_btn_append")}
                 </button>
               </div>
             </motion.div>
@@ -1214,22 +1324,33 @@ export default function SettingsPage() {
                   </button>
                 </div>
                 
-                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">Assign Quality Gate</h2>
-                <p className="text-muted-foreground text-sm">Add a quality gate inspection after sequence #{assignGateSequence}</p>
+                <h2 className="text-2xl font-display font-bold tracking-tight mb-2">{t("settings_modal_gate_title")}</h2>
+                <p className="text-muted-foreground text-sm">{t("settings_modal_gate_desc")} #{assignGateSequence}</p>
                 
                 <div className="flex flex-col gap-5 mt-6">
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase">Select Quality Gate</label>
+                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase">{t("settings_label_select_gate")}</label>
                     <select
                       id="qualityGateSelect"
                       className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary transition-all text-foreground appearance-none text-sm font-medium"
                       defaultValue=""
                     >
-                      <option value="" disabled>-- Choose a Gate --</option>
+                      <option value="" disabled>{t("settings_placeholder_choose_gate")}</option>
                       {qualityGates.map(g => (
                         <option key={g.id} value={g.id}>{g.name} ({g.type})</option>
                       ))}
                     </select>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-mono font-bold text-muted-foreground uppercase">{t("settings_label_hours")}</label>
+                    <input
+                      id="qualityGateTime"
+                      type="number"
+                      step="0.05"
+                      min="0"
+                      defaultValue={0.25}
+                      className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary transition-all text-foreground text-sm font-mono"
+                    />
                   </div>
                 </div>
 
@@ -1237,17 +1358,19 @@ export default function SettingsPage() {
                   type="button"
                   onClick={() => {
                     const select = document.getElementById('qualityGateSelect') as HTMLSelectElement
+                    const timeInput = document.getElementById('qualityGateTime') as HTMLInputElement
                     if (select && select.value) {
+                      const timeHours = timeInput ? parseFloat(timeInput.value) || 0.25 : 0.25
                       setProductQualityGateRows(prev => {
                         const filtered = prev.filter(p => p.sequenceAfter !== assignGateSequence)
-                        return [...filtered, { sequenceAfter: assignGateSequence, gateId: select.value }]
+                        return [...filtered, { sequenceAfter: assignGateSequence, gateId: select.value, timeInHours: timeHours }]
                       })
                       setAssignGateSequence(null)
                     }
                   }}
                   className="w-full mt-8 py-3.5 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-all text-sm flex justify-center items-center gap-2"
                 >
-                  Assign Gate
+                  {t("settings_btn_assign_gate")}
                 </button>
               </div>
             </motion.div>
