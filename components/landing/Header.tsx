@@ -280,16 +280,6 @@ export function Header() {
           </motion.button>
         </Link>
 
-        <Link href="/login">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.97 }}
-            className="hidden sm:block h-10 px-5 bg-emerald-500 text-white text-sm font-semibold rounded-full shadow-md hover:bg-emerald-400 transition-colors"
-          >
-            {t("header_get_started")}
-          </motion.button>
-        </Link>
-
         {/* Mobile menu toggle */}
         <button
           onClick={() => setMobileOpen(o => !o)}
@@ -335,9 +325,6 @@ export function Header() {
               <div className="mt-6 flex flex-col gap-3 px-2">
                 <Link href="/login" onClick={() => setMobileOpen(false)}>
                   <button className="w-full h-12 bg-white text-[#0B0E11] font-semibold rounded-full">{t("header_signIn")}</button>
-                </Link>
-                <Link href="/login" onClick={() => setMobileOpen(false)}>
-                  <button className="w-full h-12 bg-emerald-500 text-white font-semibold rounded-full">{t("header_get_started")}</button>
                 </Link>
               </div>
             </div>
