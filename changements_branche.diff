@@ -1,0 +1,2910 @@
+diff --git a/app/checkout/page.tsx b/app/checkout/page.tsx
+new file mode 100644
+index 0000000..fe699d8
+--- /dev/null
++++ b/app/checkout/page.tsx
+@@ -0,0 +1,311 @@
++"use client"
++
++import React, { useState, Suspense } from "react"
++import { motion } from "framer-motion"
++import { useSearchParams } from "next/navigation"
++import { Header } from "@/components/landing/Header"
++import { useLanguage } from "@/providers/LanguageProvider"
++import { Check, ArrowLeft, ArrowRight, Lock, CreditCard, CalendarBlank, ShieldCheck } from "@phosphor-icons/react"
++import Link from "next/link"
++import type { DictionaryKeys } from "@/lib/i18n/dictionary"
++
++const PAID_PLANS = ["startup", "pro", "enterprise"]
++
++function formatCardNumber(value: string) {
++  const digits = value.replace(/\D/g, "").slice(0, 16)
++  return digits.replace(/(\d{4})(?=\d)/g, "$1 ")
++}
++
++function formatExpiry(value: string) {
++  const digits = value.replace(/\D/g, "").slice(0, 4)
++  if (digits.length > 2) return digits.slice(0, 2) + "/" + digits.slice(2)
++  return digits
++}
++
++function CheckoutForm() {
++  const searchParams = useSearchParams()
++  const { t } = useLanguage()
++
++  const planKey = searchParams.get("plan") || "startup"
++  const annual = searchParams.get("annual") === "true"
++  const isPaid = PAID_PLANS.includes(planKey)
++
++  const [paid, setPaid] = useState(false)
++  const [cardNumber, setCardNumber] = useState("")
++  const [cardName, setCardName] = useState("")
++  const [expiry, setExpiry] = useState("")
++  const [cvv, setCvv] = useState("")
++
++  const priceKey = `pricing_${planKey}_price` as DictionaryKeys
++  const basePrice = parseInt(t(priceKey))
++  const displayPrice = annual ? Math.round(basePrice * 12 * 0.8 / 12) : basePrice
++  const planName = t(`pricing_${planKey}` as DictionaryKeys)
++
++  const features: string[] = []
++  for (let i = 1; i <= 6; i++) {
++    const fk = `pricing_${planKey}_feat${i}` as DictionaryKeys
++    const val = t(fk)
++    if (val !== fk) features.push(val)
++  }
++
++  const handleSubmit = (e: React.FormEvent) => {
++    e.preventDefault()
++    if (!cardNumber || !cardName || !expiry || !cvv) return
++    setPaid(true)
++  }
++
++  const backHref = `/pricing${annual ? "?annual=true" : ""}`
++
++  if (!isPaid) {
++    return (
++      <div className="text-center py-20">
++        <p className="text-white/50 text-lg">{t("pricing_title")}</p>
++        <Link href="/pricing" className="mt-4 inline-block text-emerald-400 hover:text-emerald-300 transition-colors underline">
++          {t("pricing_title")}
++        </Link>
++      </div>
++    )
++  }
++
++  if (paid) {
++    return (
++      <motion.div
++        initial={{ opacity: 0, scale: 0.95 }}
++        animate={{ opacity: 1, scale: 1 }}
++        className="max-w-lg mx-auto text-center"
++      >
++        <div className="w-20 h-20 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-8">
++          <Check weight="bold" className="w-10 h-10 text-emerald-400" />
++        </div>
++
++        <h2 className="text-3xl md:text-4xl font-display font-bold tracking-tighter text-white mb-4">
++          {t("checkout_success_title")}
++        </h2>
++
++        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8 text-left">
++          <div className="flex items-center justify-between mb-4">
++            <span className="text-white/50 text-sm">{t("pricing_title")}</span>
++            <span className="text-emerald-400 text-sm font-semibold">
++              <Check weight="bold" className="w-4 h-4 inline mr-1" />
++              {t("checkout_success_status")}
++            </span>
++          </div>
++          <div className="flex items-center justify-between py-3 border-t border-white/10">
++            <span className="text-white/70 text-sm">{planName}</span>
++            <span className="text-white font-semibold">${displayPrice}/mo</span>
++          </div>
++          <div className="flex items-center justify-between py-3 border-t border-white/10">
++            <span className="text-white/70 text-sm">{annual ? t("checkout_billed_annual") : t("checkout_billed_monthly")}</span>
++            <span className="text-white/50 text-sm">{annual ? t("checkout_save_annual") : ""}</span>
++          </div>
++        </div>
++
++        <p className="text-white/40 text-sm mb-8">
++          {t("checkout_success_desc")}
++        </p>
++
++        <Link href="/login">
++          <motion.button
++            whileHover={{ scale: 1.03 }}
++            whileTap={{ scale: 0.97 }}
++            className="h-12 px-6 bg-emerald-500 text-white font-semibold rounded-full flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 transition-all"
++          >
++            {t("header_signIn")}
++            <ArrowRight weight="bold" className="w-4 h-4" />
++          </motion.button>
++        </Link>
++      </motion.div>
++    )
++  }
++
++  return (
++    <motion.div
++      initial={{ opacity: 0, y: 20 }}
++      animate={{ opacity: 1, y: 0 }}
++      className="max-w-4xl mx-auto w-full"
++    >
++      <Link
++        href={backHref}
++        className="inline-flex items-center gap-2 text-sm text-white/40 hover:text-white transition-colors mb-8"
++      >
++        <ArrowLeft weight="bold" className="w-4 h-4" />
++        {t("pricing_title")}
++      </Link>
++
++      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
++        {/* Order summary */}
++        <div className="lg:col-span-2">
++          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 sticky top-28">
++            <h3 className="text-sm font-mono tracking-widest text-white/40 uppercase mb-6">
++              {t("checkout_summary")}
++            </h3>
++
++            <div className="flex items-center justify-between mb-6">
++              <div>
++                <p className="text-white font-semibold text-lg">{planName}</p>
++                <p className="text-white/40 text-sm mt-0.5">
++                  {annual ? t("checkout_billed_annual") : t("checkout_billed_monthly")}
++                </p>
++              </div>
++              <div className="text-right">
++                <p className="text-white font-display font-bold text-2xl">${displayPrice}</p>
++                <p className="text-white/40 text-xs">/mo</p>
++              </div>
++            </div>
++
++            {annual && (
++              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3 mb-6">
++                <p className="text-emerald-400 text-sm font-semibold">
++                  {t("checkout_save_annual")}
++                </p>
++              </div>
++            )}
++
++            <div className="space-y-3 border-t border-white/10 pt-6">
++              {features.map((feat, i) => (
++                <div key={i} className="flex items-start gap-3">
++                  <Check weight="bold" className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
++                  <span className="text-sm text-white/60">{feat}</span>
++                </div>
++              ))}
++            </div>
++          </div>
++        </div>
++
++        {/* Payment form */}
++        <div className="lg:col-span-3">
++          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 md:p-8">
++            <div className="flex items-center gap-3 mb-8">
++              <Lock weight="bold" className="w-5 h-5 text-emerald-400" />
++              <h3 className="text-lg font-display font-bold text-white">
++                {t("checkout_payment_title")}
++              </h3>
++            </div>
++
++            <form onSubmit={handleSubmit} className="space-y-5">
++              <div>
++                <label className="block text-sm font-medium text-white/70 mb-1.5">
++                  {t("checkout_card_number")}
++                </label>
++                <div className="relative">
++                  <CreditCard weight="duotone" className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
++                  <input
++                    type="text"
++                    value={cardNumber}
++                    onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
++                    placeholder={t("checkout_card_placeholder")}
++                    required
++                    className="w-full h-12 pl-12 pr-4 rounded-xl bg-[#0B0E11] border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm tracking-widest font-mono"
++                  />
++                </div>
++              </div>
++
++              <div>
++                <label className="block text-sm font-medium text-white/70 mb-1.5">
++                  {t("checkout_cardholder")}
++                </label>
++                <input
++                  type="text"
++                  value={cardName}
++                  onChange={(e) => setCardName(e.target.value)}
++                  placeholder={t("checkout_cardholder_placeholder")}
++                  required
++                  className="w-full h-12 px-4 rounded-xl bg-[#0B0E11] border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm"
++                />
++              </div>
++
++              <div className="grid grid-cols-2 gap-4">
++                <div>
++                  <label className="block text-sm font-medium text-white/70 mb-1.5">
++                    {t("checkout_expiry")}
++                  </label>
++                  <div className="relative">
++                    <CalendarBlank weight="duotone" className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
++                    <input
++                      type="text"
++                      value={expiry}
++                      onChange={(e) => setExpiry(formatExpiry(e.target.value))}
++                      placeholder={t("checkout_expiry_placeholder")}
++                      required
++                      className="w-full h-12 pl-12 pr-4 rounded-xl bg-[#0B0E11] border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm font-mono"
++                    />
++                  </div>
++                </div>
++                <div>
++                  <label className="block text-sm font-medium text-white/70 mb-1.5">{t("checkout_cvv")}</label>
++                  <input
++                    type="text"
++                    value={cvv}
++                    onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
++                    placeholder={t("checkout_cvv_placeholder")}
++                    required
++                    className="w-full h-12 px-4 rounded-xl bg-[#0B0E11] border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm font-mono"
++                  />
++                </div>
++              </div>
++
++              <motion.button
++                type="submit"
++                whileHover={{ scale: 1.02 }}
++                whileTap={{ scale: 0.98 }}
++                className="w-full h-14 rounded-full bg-emerald-500 text-white font-semibold text-base flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 transition-all mt-2"
++              >
++                <Lock weight="bold" className="w-5 h-5" />
++                {t("checkout_pay")} ${displayPrice}/mo
++              </motion.button>
++            </form>
++          </div>
++        </div>
++      </div>
++    </motion.div>
++  )
++}
++
++function CheckoutPageContent() {
++  const { t } = useLanguage()
++
++  return (
++    <main className="min-h-[100dvh] flex flex-col bg-[#0B0E11] text-white selection:bg-emerald-500/30 overflow-x-hidden w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
++      <Header />
++
++      <section className="relative pt-36 pb-24 md:pb-32 px-6 md:px-12 flex-1 flex items-start justify-center">
++        <div className="absolute inset-0 pointer-events-none">
++          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-emerald-500/5 blur-[150px] rounded-full" />
++        </div>
++
++        <Suspense fallback={
++          <div className="text-center py-20">
++            <div className="w-8 h-8 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin mx-auto" />
++          </div>
++        }>
++          <CheckoutForm />
++        </Suspense>
++      </section>
++
++      <footer className="border-t border-white/5 bg-[#0B0E11] py-12 px-6">
++        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
++          <div className="flex items-center gap-4">
++            <div className="w-10 h-10 flex items-center justify-center overflow-hidden relative rounded-xl shadow-sm opacity-80">
++              <img
++                src="/android-chrome-512x512.png"
++                alt="PROD_CORE Logo"
++                className="w-full object-contain rounded-xl brightness-0 invert opacity-50 hover:opacity-100 transition-all"
++              />
++            </div>
++            <span className="font-display font-bold text-sm text-white/40 tracking-tight">PROD_CORE</span>
++          </div>
++          <p className="text-white/40 font-sans text-sm text-center">{t("footer_copy")}</p>
++          <div className="flex items-center gap-4 text-xs text-white/40 font-mono">
++            <span>v2.0</span>
++            <span className="w-px h-4 bg-white/10" />
++            <Link href="/login" className="hover:text-white transition-colors">{t("header_signIn")}</Link>
++          </div>
++        </div>
++      </footer>
++    </main>
++  )
++}
++
++export default function CheckoutPage() {
++  return <CheckoutPageContent />
++}
+diff --git a/app/demo/page.tsx b/app/demo/page.tsx
+new file mode 100644
+index 0000000..5611cf2
+--- /dev/null
++++ b/app/demo/page.tsx
+@@ -0,0 +1,299 @@
++"use client"
++
++import React, { useState } from "react"
++import { motion } from "framer-motion"
++import { Header } from "@/components/landing/Header"
++import { useLanguage } from "@/providers/LanguageProvider"
++import { Check, ArrowLeft, ArrowRight, VideoCamera, CalendarDots } from "@phosphor-icons/react"
++import Link from "next/link"
++import type { DictionaryKeys } from "@/lib/i18n/dictionary"
++
++function DemoPageContent() {
++  const { t } = useLanguage()
++  const [submitted, setSubmitted] = useState(false)
++  const [form, setForm] = useState({
++    company: "",
++    name: "",
++    email: "",
++    phone: "",
++    size: "",
++    message: "",
++  })
++
++  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
++    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
++  }
++
++  const handleSubmit = (e: React.FormEvent) => {
++    e.preventDefault()
++    setSubmitted(true)
++  }
++
++  const sizeKey = `demo_size_${form.size}` as DictionaryKeys
++
++  return (
++    <main className="min-h-[100dvh] flex flex-col bg-[#0B0E11] text-white selection:bg-emerald-500/30 overflow-x-hidden w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
++      <Header />
++
++      <section className="relative pt-36 pb-24 md:pb-32 px-6 md:px-12 flex-1 flex items-start justify-center">
++        <div className="absolute inset-0 pointer-events-none">
++          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-emerald-500/5 blur-[150px] rounded-full" />
++        </div>
++
++        <div className="relative max-w-2xl mx-auto w-full">
++          {!submitted ? (
++            <motion.div
++              initial={{ opacity: 0, y: 20 }}
++              animate={{ opacity: 1, y: 0 }}
++            >
++              <Link
++                href="/pricing"
++                className="inline-flex items-center gap-2 text-sm text-white/40 hover:text-white transition-colors mb-8"
++              >
++                <ArrowLeft weight="bold" className="w-4 h-4" />
++                {t("pricing_title")}
++              </Link>
++
++              <div className="text-center mb-10">
++                <motion.div
++                  initial={{ opacity: 0, y: -10 }}
++                  animate={{ opacity: 1, y: 0 }}
++                  className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 mb-6"
++                >
++                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
++                  <span className="text-xs font-mono font-bold tracking-widest text-emerald-400 uppercase">
++                    {t("pricing_free" as DictionaryKeys)}
++                  </span>
++                </motion.div>
++
++                <h1 className="text-4xl md:text-5xl font-display font-bold tracking-tighter text-white mb-4">
++                  {t("demo_title")}
++                </h1>
++                <p className="text-lg text-white/50 max-w-lg mx-auto">
++                  {t("demo_desc")}
++                </p>
++              </div>
++
++              <motion.form
++                onSubmit={handleSubmit}
++                initial={{ opacity: 0, y: 20 }}
++                animate={{ opacity: 1, y: 0 }}
++                transition={{ delay: 0.1 }}
++                className="space-y-5"
++              >
++                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
++                  <div>
++                    <label className="block text-sm font-medium text-white/70 mb-1.5">
++                      {t("demo_company")} <span className="text-emerald-400">*</span>
++                    </label>
++                    <input
++                      type="text"
++                      name="company"
++                      value={form.company}
++                      onChange={handleChange}
++                      required
++                      className="w-full h-12 px-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm"
++                      placeholder={t("login_placeholder_company")}
++                    />
++                  </div>
++                  <div>
++                    <label className="block text-sm font-medium text-white/70 mb-1.5">
++                      {t("demo_name")} <span className="text-emerald-400">*</span>
++                    </label>
++                    <input
++                      type="text"
++                      name="name"
++                      value={form.name}
++                      onChange={handleChange}
++                      required
++                      className="w-full h-12 px-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm"
++                      placeholder={t("login_label_name")}
++                    />
++                  </div>
++                </div>
++
++                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
++                  <div>
++                    <label className="block text-sm font-medium text-white/70 mb-1.5">
++                      {t("demo_email")} <span className="text-emerald-400">*</span>
++                    </label>
++                    <input
++                      type="email"
++                      name="email"
++                      value={form.email}
++                      onChange={handleChange}
++                      required
++                      className="w-full h-12 px-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm"
++                      placeholder={t("login_label_email")}
++                    />
++                  </div>
++                  <div>
++                    <label className="block text-sm font-medium text-white/70 mb-1.5">
++                      {t("demo_phone")} <span className="text-emerald-400">*</span>
++                    </label>
++                    <input
++                      type="tel"
++                      name="phone"
++                      value={form.phone}
++                      onChange={handleChange}
++                      required
++                      className="w-full h-12 px-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm"
++                      placeholder={t("demo_phone_placeholder")}
++                    />
++                  </div>
++                </div>
++
++                <div>
++                  <label className="block text-sm font-medium text-white/70 mb-1.5">
++                    {t("demo_size")} <span className="text-emerald-400">*</span>
++                  </label>
++                  <select
++                    name="size"
++                    value={form.size}
++                    onChange={handleChange}
++                    required
++                    className="w-full h-12 px-4 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm appearance-none cursor-pointer"
++                    style={{
++                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23ffffff66' viewBox='0 0 256 256'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E")`,
++                      backgroundRepeat: "no-repeat",
++                      backgroundPosition: "right 1rem center",
++                    }}
++                  >
++                    <option value="" disabled className="bg-[#14181C]">{t("demo_size_placeholder")}</option>
++                    <option value="1" className="bg-[#14181C]">{t("demo_size_1")}</option>
++                    <option value="2" className="bg-[#14181C]">{t("demo_size_2")}</option>
++                    <option value="3" className="bg-[#14181C]">{t("demo_size_3")}</option>
++                    <option value="4" className="bg-[#14181C]">{t("demo_size_4")}</option>
++                  </select>
++                </div>
++
++                <div>
++                  <label className="block text-sm font-medium text-white/70 mb-1.5">
++                    {t("demo_message")}
++                  </label>
++                  <textarea
++                    name="message"
++                    value={form.message}
++                    onChange={handleChange}
++                    rows={3}
++                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm resize-none"
++                    placeholder={t("demo_message_placeholder")}
++                  />
++                </div>
++
++                <motion.button
++                  type="submit"
++                  whileHover={{ scale: 1.02 }}
++                  whileTap={{ scale: 0.98 }}
++                  className="w-full h-14 rounded-full bg-emerald-500 text-white font-semibold text-base flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 transition-all"
++                >
++                  {t("demo_submit")}
++                  <ArrowRight weight="bold" className="w-5 h-5" />
++                </motion.button>
++
++                <p className="text-center text-xs text-white/30 mt-4">
++                  {t("demo_footer")}
++                </p>
++              </motion.form>
++            </motion.div>
++          ) : (
++            <motion.div
++              initial={{ opacity: 0, scale: 0.95 }}
++              animate={{ opacity: 1, scale: 1 }}
++              className="text-center"
++            >
++              <div className="w-20 h-20 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-8">
++                <Check weight="bold" className="w-10 h-10 text-emerald-400" />
++              </div>
++
++              <h2 className="text-3xl md:text-4xl font-display font-bold tracking-tighter text-white mb-4">
++                {t("demo_success_title")}
++              </h2>
++              <p className="text-lg text-white/50 max-w-md mx-auto mb-10">
++                {t("demo_success_desc")}
++              </p>
++
++              <div className="max-w-sm mx-auto space-y-4 mb-12">
++                <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/10 text-left">
++                  <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
++                    <VideoCamera weight="bold" className="w-5 h-5 text-emerald-400" />
++                  </div>
++                  <div>
++                    <p className="text-sm font-medium text-white">
++                      {t("demo_video_title")}
++                    </p>
++                    <p className="text-xs text-white/40">
++                      {t("demo_video_desc")}
++                    </p>
++                  </div>
++                </div>
++
++                <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/10 text-left">
++                  <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
++                    <CalendarDots weight="bold" className="w-5 h-5 text-emerald-400" />
++                  </div>
++                  <div>
++                    <p className="text-sm font-medium text-white">
++                      {t("demo_delay_title")}
++                    </p>
++                    <p className="text-xs text-white/40">
++                      {t("demo_delay_desc")}
++                    </p>
++                  </div>
++                </div>
++              </div>
++
++              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
++                <Link href="/pricing">
++                  <motion.button
++                    whileHover={{ scale: 1.03 }}
++                    whileTap={{ scale: 0.97 }}
++                    className="h-12 px-6 bg-white/10 text-white border border-white/20 font-semibold rounded-full flex items-center gap-2 transition-all hover:bg-white/20"
++                  >
++                    <ArrowLeft weight="bold" className="w-4 h-4" />
++                    {t("pricing_title")}
++                  </motion.button>
++                </Link>
++                <Link href="/login">
++                  <motion.button
++                    whileHover={{ scale: 1.03 }}
++                    whileTap={{ scale: 0.97 }}
++                    className="h-12 px-6 bg-emerald-500 text-white font-semibold rounded-full flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 transition-all"
++                  >
++                    {t("pricing_cta")}
++                    <ArrowRight weight="bold" className="w-4 h-4" />
++                  </motion.button>
++                </Link>
++              </div>
++            </motion.div>
++          )}
++        </div>
++      </section>
++
++      <footer className="border-t border-white/5 bg-[#0B0E11] py-12 px-6">
++        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
++          <div className="flex items-center gap-4">
++            <div className="w-10 h-10 flex items-center justify-center overflow-hidden relative rounded-xl shadow-sm opacity-80">
++              <img
++                src="/android-chrome-512x512.png"
++                alt="PROD_CORE Logo"
++                className="w-full object-contain rounded-xl brightness-0 invert opacity-50 hover:opacity-100 transition-all"
++              />
++            </div>
++            <span className="font-display font-bold text-sm text-white/40 tracking-tight">PROD_CORE</span>
++          </div>
++          <p className="text-white/40 font-sans text-sm text-center">{t("footer_copy")}</p>
++          <div className="flex items-center gap-4 text-xs text-white/40 font-mono">
++            <span>v2.0</span>
++            <span className="w-px h-4 bg-white/10" />
++            <Link href="/login" className="hover:text-white transition-colors">{t("header_signIn")}</Link>
++          </div>
++        </div>
++      </footer>
++    </main>
++  )
++}
++
++export default function DemoPage() {
++  return <DemoPageContent />
++}
+diff --git a/app/page.tsx b/app/page.tsx
+index ab571b5..374841d 100644
+--- a/app/page.tsx
++++ b/app/page.tsx
+@@ -1,9 +1,13 @@
+ "use client"
+ 
+ import { Header } from "@/components/landing/Header"
+-import { HeroSection } from "@/components/landing/HeroSection"
++import { HeroCarousel } from "@/components/landing/HeroCarousel"
+ import { StatsMarquee } from "@/components/landing/StatsMarquee"
+-import { DetailedModules } from "@/components/landing/DetailedModules"
++import { FeatureGrid } from "@/components/landing/FeatureGrid"
++import { SmartShowcase } from "@/components/landing/SmartShowcase"
++import { ProductShowcase } from "@/components/landing/ProductShowcase"
++import { MarqueeBanner } from "@/components/landing/MarqueeBanner"
++import { ScreenshotGallery } from "@/components/landing/ScreenshotGallery"
+ import { useLanguage } from "@/providers/LanguageProvider"
+ import { motion } from "framer-motion"
+ import Link from "next/link"
+@@ -13,21 +17,23 @@ function LandingPageContent() {
+   const { t } = useLanguage()
+ 
+   return (
+-    <main className="min-h-[100dvh] flex flex-col bg-background text-foreground selection:bg-accent-green/30 overflow-x-hidden w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
++    <main className="min-h-[100dvh] flex flex-col bg-[#0B0E11] text-white selection:bg-emerald-500/30 overflow-x-hidden w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+       <Header />
+-      <div className="pt-6" />
+-      <HeroSection />
++      <HeroCarousel />
+       <StatsMarquee />
+-      <div id="modules" className="scroll-mt-20 w-full">
+-        <DetailedModules />
+-      </div>
++      <div id="showcase"><SmartShowcase /></div>
++      <div id="features"><FeatureGrid /></div>
++      <MarqueeBanner />
++      <div id="products"><ProductShowcase /></div>
++      <ScreenshotGallery />
+ 
+       {/* ── CTA Section ─────────────────────────────── */}
+-      <section className="relative w-full px-6 md:px-12 py-24 md:py-36 overflow-hidden">
++      <section className="relative w-full px-6 md:px-12 py-24 md:py-36 overflow-hidden bg-[#0B0E11]">
++        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
++
+         {/* animated radial glow */}
+         <div className="absolute inset-0 pointer-events-none">
+-          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-foreground/5 rounded-full blur-[100px]" />
+-          <div className="absolute bottom-0 left-0 right-0 h-px bg-border/50" />
++          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-white/5 rounded-full blur-[100px]" />
+         </div>
+ 
+         <div className="relative max-w-4xl mx-auto text-center flex flex-col items-center gap-8">
+@@ -36,10 +42,10 @@ function LandingPageContent() {
+             whileInView={{ opacity: 1, scale: 1 }}
+             viewport={{ once: true, margin: "-60px" }}
+             transition={{ type: "spring", stiffness: 120, damping: 18 }}
+-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-muted/60 border border-border backdrop-blur-md"
++            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md"
+           >
+-            <Sparkle weight="fill" className="w-4 h-4 text-amber-500 animate-pulse" />
+-            <span className="text-sm font-mono font-semibold tracking-widest text-muted-foreground uppercase">
++            <Sparkle weight="fill" className="w-4 h-4 text-amber-400 animate-pulse" />
++            <span className="text-sm font-mono font-semibold tracking-widest text-white/60 uppercase">
+               {t("cta_badge")}
+             </span>
+           </motion.div>
+@@ -49,7 +55,7 @@ function LandingPageContent() {
+             whileInView={{ opacity: 1, y: 0 }}
+             viewport={{ once: true, margin: "-60px" }}
+             transition={{ type: "spring", stiffness: 100, damping: 20, delay: 0.1 }}
+-            className="text-4xl md:text-6xl lg:text-7xl font-display font-bold tracking-tighter leading-[1.05] text-foreground"
++            className="text-4xl md:text-6xl lg:text-7xl font-display font-bold tracking-tighter leading-[1.05] text-white"
+           >
+             {t("cta_title")}
+           </motion.h2>
+@@ -59,7 +65,7 @@ function LandingPageContent() {
+             whileInView={{ opacity: 1, y: 0 }}
+             viewport={{ once: true, margin: "-60px" }}
+             transition={{ type: "spring", stiffness: 100, damping: 20, delay: 0.2 }}
+-            className="text-lg text-muted-foreground max-w-xl leading-relaxed"
++            className="text-lg text-white/50 max-w-xl leading-relaxed"
+           >
+             {t("cta_desc")}
+           </motion.p>
+@@ -75,7 +81,7 @@ function LandingPageContent() {
+               <motion.button
+                 whileHover={{ scale: 1.04 }}
+                 whileTap={{ scale: 0.97 }}
+-                className="h-14 px-8 bg-foreground text-background font-semibold rounded-full flex items-center gap-2 shadow-lg hover:shadow-xl transition-shadow"
++                className="h-14 px-8 bg-white text-[#0B0E11] font-semibold rounded-full flex items-center gap-2 shadow-lg hover:shadow-white/25 transition-shadow"
+               >
+                 {t("cta_btn_start")}
+                 <ArrowRight weight="bold" className="w-5 h-5" />
+@@ -85,7 +91,7 @@ function LandingPageContent() {
+               <motion.button
+                 whileHover={{ scale: 1.04 }}
+                 whileTap={{ scale: 0.97 }}
+-                className="h-14 px-8 bg-transparent text-foreground border border-border font-semibold rounded-full flex items-center gap-2 hover:bg-muted transition-colors"
++                className="h-14 px-8 bg-white/10 text-white border border-white/20 font-semibold rounded-full flex items-center gap-2 backdrop-blur-md hover:bg-white/20 transition-all"
+               >
+                 {t("cta_btn_modules")}
+               </motion.button>
+@@ -95,25 +101,25 @@ function LandingPageContent() {
+       </section>
+ 
+       {/* Footer */}
+-      <footer className="border-t border-border bg-card py-12 px-6 mt-0 w-full">
++      <footer className="border-t border-white/5 bg-[#0B0E11] py-12 px-6 mt-0 w-full">
+         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+           <div className="flex items-center gap-4">
+             <div className="w-10 h-10 flex items-center justify-center overflow-hidden relative rounded-xl shadow-sm opacity-80">
+-               <img 
+-                 src="/android-chrome-512x512.png" 
+-                 alt="PROD_CORE Logo" 
+-                 className="w-full object-contain rounded-xl grayscale opacity-50 hover:grayscale-0 hover:opacity-100 transition-all" 
++               <img
++                 src="/android-chrome-512x512.png"
++                 alt="PROD_CORE Logo"
++                 className="w-full object-contain rounded-xl grayscale opacity-50 hover:grayscale-0 hover:opacity-100 transition-all"
+                />
+             </div>
+-            <span className="font-display font-bold text-sm text-muted-foreground tracking-tight">PROD_CORE</span>
++            <span className="font-display font-bold text-sm text-white/40 tracking-tight">PROD_CORE</span>
+           </div>
+-          <p className="text-muted-foreground font-sans text-sm text-center">
++          <p className="text-white/40 font-sans text-sm text-center">
+             {t("footer_copy")}
+           </p>
+-          <div className="flex items-center gap-4 text-xs text-muted-foreground font-mono">
++          <div className="flex items-center gap-4 text-xs text-white/40 font-mono">
+             <span>v2.0</span>
+-            <span className="w-px h-4 bg-border" />
+-            <Link href="/login" className="hover:text-foreground transition-colors">{t("header_signIn")}</Link>
++            <span className="w-px h-4 bg-white/10" />
++            <Link href="/login" className="hover:text-white transition-colors">{t("header_signIn")}</Link>
+           </div>
+         </div>
+       </footer>
+diff --git a/app/pricing/page.tsx b/app/pricing/page.tsx
+new file mode 100644
+index 0000000..fbc6222
+--- /dev/null
++++ b/app/pricing/page.tsx
+@@ -0,0 +1,318 @@
++"use client"
++
++import React, { useState } from "react"
++import { motion } from "framer-motion"
++import { Header } from "@/components/landing/Header"
++import { useLanguage } from "@/providers/LanguageProvider"
++import { Check, ArrowRight, Question, X, CaretDown } from "@phosphor-icons/react"
++import Link from "next/link"
++import type { DictionaryKeys } from "@/lib/i18n/dictionary"
++
++const PLANS = [
++  {
++    key: "free",
++    popular: false,
++    features: [
++      "pricing_free_feat1",
++      "pricing_free_feat2",
++      "pricing_free_feat3",
++      "pricing_free_feat4",
++    ],
++    excluded: [] as string[],
++  },
++  {
++    key: "startup",
++    popular: false,
++    features: [
++      "pricing_startup_feat1",
++      "pricing_startup_feat2",
++      "pricing_startup_feat3",
++      "pricing_startup_feat4",
++    ],
++    excluded: [] as string[],
++  },
++  {
++    key: "pro",
++    popular: true,
++    features: [
++      "pricing_pro_feat1",
++      "pricing_pro_feat2",
++      "pricing_pro_feat3",
++      "pricing_pro_feat4",
++      "pricing_pro_feat5",
++    ],
++    excluded: [] as string[],
++  },
++  {
++    key: "enterprise",
++    popular: false,
++    features: [
++      "pricing_enterprise_feat1",
++      "pricing_enterprise_feat2",
++      "pricing_enterprise_feat3",
++      "pricing_enterprise_feat4",
++      "pricing_enterprise_feat5",
++      "pricing_enterprise_feat6",
++    ],
++    excluded: [] as string[],
++  },
++]
++
++const FAQS = [
++  { q: "pricing_faq_1q", a: "pricing_faq_1a" },
++  { q: "pricing_faq_2q", a: "pricing_faq_2a" },
++  { q: "pricing_faq_3q", a: "pricing_faq_3a" },
++  { q: "pricing_faq_4q", a: "pricing_faq_4a" },
++]
++
++function PricingPageContent() {
++  const { t } = useLanguage()
++  const [annual, setAnnual] = useState(false)
++  const [openFaq, setOpenFaq] = useState<number | null>(null)
++
++  return (
++    <main className="min-h-[100dvh] flex flex-col bg-[#0B0E11] text-white selection:bg-emerald-500/30 overflow-x-hidden w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
++      <Header />
++
++      {/* Header section */}
++      <section className="relative pt-36 pb-16 md:pb-24 px-6 md:px-12 overflow-hidden">
++        <div className="absolute inset-0 pointer-events-none">
++          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-emerald-500/5 blur-[150px] rounded-full" />
++        </div>
++
++        <div className="relative max-w-4xl mx-auto text-center flex flex-col items-center gap-6">
++          <motion.div
++            initial={{ opacity: 0, y: -10 }}
++            animate={{ opacity: 1, y: 0 }}
++            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20"
++          >
++            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
++            <span className="text-xs font-mono font-bold tracking-widest text-emerald-400 uppercase">{t("pricing_badge")}</span>
++          </motion.div>
++
++          <motion.h1
++            initial={{ opacity: 0, y: 20 }}
++            animate={{ opacity: 1, y: 0 }}
++            transition={{ delay: 0.1 }}
++            className="text-4xl md:text-6xl font-display font-bold tracking-tighter text-white"
++          >
++            {t("pricing_title")}
++          </motion.h1>
++
++          <motion.p
++            initial={{ opacity: 0, y: 20 }}
++            animate={{ opacity: 1, y: 0 }}
++            transition={{ delay: 0.15 }}
++            className="text-lg text-white/50 max-w-xl"
++          >
++            {t("pricing_desc")}
++          </motion.p>
++
++          {/* Billing toggle */}
++          <motion.div
++            initial={{ opacity: 0, y: 20 }}
++            animate={{ opacity: 1, y: 0 }}
++            transition={{ delay: 0.2 }}
++            className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-full p-1.5 mt-4"
++          >
++            <button
++              onClick={() => setAnnual(false)}
++              className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
++                !annual ? "bg-white text-[#0B0E11]" : "text-white/50 hover:text-white"
++              }`}
++            >
++              {t("pricing_monthly")}
++            </button>
++            <button
++              onClick={() => setAnnual(true)}
++              className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
++                annual ? "bg-white text-[#0B0E11]" : "text-white/50 hover:text-white"
++              }`}
++            >
++              {t("pricing_annual")}
++              <span className="ml-1.5 text-[10px] font-mono bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full">-20%</span>
++            </button>
++          </motion.div>
++        </div>
++      </section>
++
++      {/* Plans grid */}
++      <section className="px-6 md:px-12 pb-24 md:pb-32">
++        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
++          {PLANS.map((plan, idx) => {
++            const isFree = plan.key === "free"
++            const priceKey = `pricing_${plan.key}_price` as DictionaryKeys
++            const basePrice = parseInt(t(priceKey))
++            const displayPrice = annual && !isFree ? Math.round(basePrice * 12 * 0.8 / 12) : basePrice
++
++            return (
++              <motion.div
++                key={plan.key}
++                initial={{ opacity: 0, y: 30 }}
++                animate={{ opacity: 1, y: 0 }}
++                transition={{ delay: 0.1 + idx * 0.1 }}
++                className={`relative rounded-2xl border p-8 flex flex-col ${
++                  plan.popular
++                    ? "bg-emerald-500/5 border-emerald-500/30 shadow-xl shadow-emerald-500/10"
++                    : "bg-[#14181C] border-white/10 hover:border-white/20"
++                } transition-all`}
++              >
++                {plan.popular && (
++                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-emerald-500 text-white text-[10px] font-mono font-bold tracking-widest rounded-full uppercase">
++                    {t("pricing_popular")}
++                  </div>
++                )}
++
++                <div className="mb-6">
++                  <h3 className="text-xl font-display font-bold text-white">
++                    {t(`pricing_${plan.key}` as DictionaryKeys)}
++                  </h3>
++                  <p className="text-sm text-white/40 mt-1">
++                    {t(`pricing_${plan.key}_desc` as DictionaryKeys)}
++                  </p>
++                </div>
++
++                <div className="mb-8">
++                  {isFree ? (
++                    <span className="text-5xl font-display font-bold text-white">{t("pricing_free" as DictionaryKeys)}</span>
++                  ) : (
++                    <>
++                      <span className="text-5xl font-display font-bold text-white">${displayPrice}</span>
++                      <span className="text-white/40 text-sm ml-1">/mo</span>
++                    </>
++                  )}
++                </div>
++
++                <Link href={isFree ? "/demo" : `/checkout?plan=${plan.key}${annual ? "&annual=true" : ""}`}>
++                  <motion.button
++                    whileHover={{ scale: 1.02 }}
++                    whileTap={{ scale: 0.98 }}
++                    className={`w-full h-12 rounded-full font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
++                      plan.popular
++                        ? "bg-emerald-500 text-white hover:bg-emerald-400 shadow-lg shadow-emerald-500/20"
++                        : isFree
++                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20"
++                          : "bg-white/10 text-white border border-white/20 hover:bg-white/20"
++                    }`}
++                  >
++                    {t(isFree ? "pricing_cta_demo" : "pricing_cta")}
++                    <ArrowRight weight="bold" className="w-4 h-4" />
++                  </motion.button>
++                </Link>
++
++                <div className="mt-8 space-y-4 flex-1">
++                  {plan.features.map((feat, i) => (
++                    <div key={i} className="flex items-start gap-3">
++                      <Check weight="bold" className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
++                      <span className="text-sm text-white/70">{t(feat as any)}</span>
++                    </div>
++                  ))}
++                  {plan.excluded.map((feat, i) => (
++                    <div key={i} className="flex items-start gap-3 opacity-30">
++                      <X weight="bold" className="w-5 h-5 text-white/40 shrink-0 mt-0.5" />
++                      <span className="text-sm text-white/50">{t(feat as any)}</span>
++                    </div>
++                  ))}
++                </div>
++              </motion.div>
++            )
++          })}
++        </div>
++
++        {/* Enterprise CTA */}
++        <motion.div
++          initial={{ opacity: 0, y: 20 }}
++          animate={{ opacity: 1, y: 0 }}
++          transition={{ delay: 0.5 }}
++          className="max-w-6xl mx-auto mt-8 p-8 rounded-2xl bg-white/5 border border-white/10 flex flex-col md:flex-row items-center justify-between gap-6"
++        >
++          <div>
++            <h3 className="text-xl font-display font-bold text-white">{t("pricing_enterprise_cta_title")}</h3>
++            <p className="text-sm text-white/40 mt-1">{t("pricing_enterprise_cta_desc")}</p>
++          </div>
++          <Link href="/login">
++            <motion.button
++              whileHover={{ scale: 1.03 }}
++              whileTap={{ scale: 0.97 }}
++              className="h-12 px-6 bg-white text-[#0B0E11] font-semibold rounded-full flex items-center gap-2 shadow-lg hover:shadow-white/20 transition-all shrink-0"
++            >
++              {t("pricing_cta_contact")}
++              <ArrowRight weight="bold" className="w-4 h-4" />
++            </motion.button>
++          </Link>
++        </motion.div>
++      </section>
++
++      {/* FAQ */}
++      <section className="px-6 md:px-12 pb-32">
++        <div className="max-w-3xl mx-auto">
++          <motion.h2
++            initial={{ opacity: 0, y: 20 }}
++            whileInView={{ opacity: 1, y: 0 }}
++            viewport={{ once: true }}
++            className="text-3xl md:text-4xl font-display font-bold tracking-tighter text-white text-center mb-12"
++          >
++            {t("pricing_faq_title")}
++          </motion.h2>
++
++          <div className="space-y-3">
++            {FAQS.map((faq, idx) => (
++              <motion.div
++                key={idx}
++                initial={{ opacity: 0, y: 10 }}
++                whileInView={{ opacity: 1, y: 0 }}
++                viewport={{ once: true }}
++                transition={{ delay: idx * 0.05 }}
++                className="rounded-2xl border border-white/10 overflow-hidden"
++              >
++                <button
++                  onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
++                  className="w-full flex items-center justify-between px-6 py-5 text-left bg-white/[0.02] hover:bg-white/5 transition-all"
++                >
++                  <span className="text-white font-medium text-sm">{t(faq.q as any)}</span>
++                  <CaretDown
++                    weight="bold"
++                    className={`w-4 h-4 text-white/40 transition-transform shrink-0 ${
++                      openFaq === idx ? "rotate-180" : ""
++                    }`}
++                  />
++                </button>
++                {openFaq === idx && (
++                  <div className="px-6 pb-5">
++                    <p className="text-sm text-white/50 leading-relaxed">{t(faq.a as any)}</p>
++                  </div>
++                )}
++              </motion.div>
++            ))}
++          </div>
++        </div>
++      </section>
++
++      {/* Footer */}
++      <footer className="border-t border-white/5 bg-[#0B0E11] py-12 px-6">
++        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
++          <div className="flex items-center gap-4">
++            <div className="w-10 h-10 flex items-center justify-center overflow-hidden relative rounded-xl shadow-sm opacity-80">
++              <img
++                src="/android-chrome-512x512.png"
++                alt="PROD_CORE Logo"
++                className="w-full object-contain rounded-xl brightness-0 invert opacity-50 hover:opacity-100 transition-all"
++              />
++            </div>
++            <span className="font-display font-bold text-sm text-white/40 tracking-tight">PROD_CORE</span>
++          </div>
++          <p className="text-white/40 font-sans text-sm text-center">{t("footer_copy")}</p>
++          <div className="flex items-center gap-4 text-xs text-white/40 font-mono">
++            <span>v2.0</span>
++            <span className="w-px h-4 bg-white/10" />
++            <Link href="/login" className="hover:text-white transition-colors">{t("header_signIn")}</Link>
++          </div>
++        </div>
++      </footer>
++    </main>
++  )
++}
++
++export default function PricingPage() {
++  return <PricingPageContent />
++}
+diff --git a/components/landing/FeatureGrid.tsx b/components/landing/FeatureGrid.tsx
+new file mode 100644
+index 0000000..d03bf4c
+--- /dev/null
++++ b/components/landing/FeatureGrid.tsx
+@@ -0,0 +1,123 @@
++"use client"
++
++import React from "react"
++import { motion } from "framer-motion"
++import {
++  PresentationChart,
++  FolderOpen,
++  DeviceTablet,
++  Buildings,
++  GearSix,
++  ClipboardText,
++} from "@phosphor-icons/react"
++import { useLanguage } from "@/providers/LanguageProvider"
++import type { DictionaryKeys } from "@/lib/i18n/dictionary"
++
++const FEATURES: { icon: React.ComponentType<any>; titleKey: DictionaryKeys; descKey: DictionaryKeys; color: string }[] = [
++  { icon: PresentationChart, titleKey: "feature_realtime_title" as DictionaryKeys, descKey: "feature_realtime_desc" as DictionaryKeys, color: "emerald" },
++  { icon: FolderOpen, titleKey: "feature_bom_title" as DictionaryKeys, descKey: "feature_bom_desc" as DictionaryKeys, color: "amber" },
++  { icon: GearSix, titleKey: "feature_routing_title" as DictionaryKeys, descKey: "feature_routing_desc" as DictionaryKeys, color: "blue" },
++  { icon: DeviceTablet, titleKey: "feature_tablet_title" as DictionaryKeys, descKey: "feature_tablet_desc" as DictionaryKeys, color: "purple" },
++  { icon: ClipboardText, titleKey: "feature_inventory_title" as DictionaryKeys, descKey: "feature_inventory_desc" as DictionaryKeys, color: "rose" },
++  { icon: Buildings, titleKey: "feature_multitenant_title" as DictionaryKeys, descKey: "feature_multitenant_desc" as DictionaryKeys, color: "cyan" },
++]
++
++const COLOR_MAP: Record<string, { bg: string; border: string; text: string; glow: string }> = {
++  emerald: {
++    bg: "bg-emerald-500/10",
++    border: "border-emerald-500/20 group-hover:border-emerald-500/40",
++    text: "text-emerald-400",
++    glow: "bg-emerald-500/10",
++  },
++  amber: {
++    bg: "bg-amber-500/10",
++    border: "border-amber-500/20 group-hover:border-amber-500/40",
++    text: "text-amber-400",
++    glow: "bg-amber-500/10",
++  },
++  blue: {
++    bg: "bg-blue-500/10",
++    border: "border-blue-500/20 group-hover:border-blue-500/40",
++    text: "text-blue-400",
++    glow: "bg-blue-500/10",
++  },
++  purple: {
++    bg: "bg-purple-500/10",
++    border: "border-purple-500/20 group-hover:border-purple-500/40",
++    text: "text-purple-400",
++    glow: "bg-purple-500/10",
++  },
++  rose: {
++    bg: "bg-rose-500/10",
++    border: "border-rose-500/20 group-hover:border-rose-500/40",
++    text: "text-rose-400",
++    glow: "bg-rose-500/10",
++  },
++  cyan: {
++    bg: "bg-cyan-500/10",
++    border: "border-cyan-500/20 group-hover:border-cyan-500/40",
++    text: "text-cyan-400",
++    glow: "bg-cyan-500/10",
++  },
++}
++
++export function FeatureGrid() {
++  const { t } = useLanguage()
++
++  return (
++    <section className="relative w-full py-24 md:py-32 px-6 md:px-12 bg-[#0B0E11]">
++      <div className="max-w-7xl mx-auto">
++        <motion.div
++          initial={{ opacity: 0, y: 30 }}
++          whileInView={{ opacity: 1, y: 0 }}
++          viewport={{ once: true }}
++          className="text-center mb-16"
++        >
++          <h2 className="text-4xl md:text-5xl font-display font-bold tracking-tighter text-white mb-4">
++            {t("landing_feature_title")}
++          </h2>
++          <p className="text-lg text-white/50 max-w-2xl mx-auto">
++            {t("landing_feature_desc")}
++          </p>
++        </motion.div>
++
++        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
++          {FEATURES.map((feat, idx) => {
++            const colors = COLOR_MAP[feat.color]
++            return (
++              <motion.div
++                key={idx}
++                initial={{ opacity: 0, y: 30 }}
++                whileInView={{ opacity: 1, y: 0 }}
++                viewport={{ once: true }}
++                transition={{ delay: idx * 0.08 }}
++                className="group relative"
++              >
++                {/* Glow on hover */}
++                <div className={`absolute -inset-2 ${colors.glow} blur-2xl rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none`} />
++
++                <div
++                  className={`relative h-full bg-[#14181C] rounded-2xl border border-white/5 ${colors.border} p-6 flex flex-col gap-5 transition-all duration-300 cursor-default`}
++                >
++                  <div
++                    className={`w-14 h-14 rounded-2xl ${colors.bg} ${colors.border.replace("group-hover:", "")} flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}
++                  >
++                    <feat.icon weight="duotone" className={`w-7 h-7 ${colors.text}`} />
++                  </div>
++
++                  <h3 className="text-white font-display font-bold text-lg tracking-tight">
++                    {t(feat.titleKey)}
++                  </h3>
++
++                  <p className="text-sm text-white/40 leading-relaxed">
++                    {t(feat.descKey)}
++                  </p>
++                </div>
++              </motion.div>
++            )
++          })}
++        </div>
++      </div>
++    </section>
++  )
++}
+diff --git a/components/landing/Header.tsx b/components/landing/Header.tsx
+index d8612cd..3a0dd0b 100644
+--- a/components/landing/Header.tsx
++++ b/components/landing/Header.tsx
+@@ -2,9 +2,9 @@
+ 
+ import React, { useState, useRef, useEffect } from "react"
+ import { motion, AnimatePresence } from "framer-motion"
+-import { Buildings, CaretDown, Globe } from "@phosphor-icons/react"
++import { Buildings, CaretDown, Globe, List, X, PresentationChart, FolderOpen, DeviceTablet, ShieldCheck, Article, BookOpenText, Headset, Info, Envelope } from "@phosphor-icons/react"
+ import Link from "next/link"
+-import { ThemeToggle } from "./ThemeToggle"
++
+ import { useLanguage } from "@/providers/LanguageProvider"
+ 
+ type Language = "en" | "fr" | "es"
+@@ -18,14 +18,22 @@ const LANGUAGES: { code: Language; label: string; flag: string }[] = [
+ export function Header() {
+   const [imageError, setImageError] = useState(false)
+   const [langOpen, setLangOpen] = useState(false)
++  const [mobileOpen, setMobileOpen] = useState(false)
++  const [solutionsOpen, setSolutionsOpen] = useState(false)
++  const [resourcesOpen, setResourcesOpen] = useState(false)
++  const [companyOpen, setCompanyOpen] = useState(false)
+   const langRef = useRef<HTMLDivElement>(null)
++  const solutionsRef = useRef<HTMLDivElement>(null)
++  const resourcesRef = useRef<HTMLDivElement>(null)
++  const companyRef = useRef<HTMLDivElement>(null)
+   const { language, setLanguage, t } = useLanguage()
+ 
+   useEffect(() => {
+     function handleClickOutside(e: MouseEvent) {
+-      if (langRef.current && !langRef.current.contains(e.target as Node)) {
+-        setLangOpen(false)
+-      }
++      if (langRef.current && !langRef.current.contains(e.target as Node)) setLangOpen(false)
++      if (solutionsRef.current && !solutionsRef.current.contains(e.target as Node)) setSolutionsOpen(false)
++      if (resourcesRef.current && !resourcesRef.current.contains(e.target as Node)) setResourcesOpen(false)
++      if (companyRef.current && !companyRef.current.contains(e.target as Node)) setCompanyOpen(false)
+     }
+     document.addEventListener("mousedown", handleClickOutside)
+     return () => document.removeEventListener("mousedown", handleClickOutside)
+@@ -33,55 +41,205 @@ export function Header() {
+ 
+   const currentLang = LANGUAGES.find(l => l.code === language) ?? LANGUAGES[0]
+ 
++  const SOLUTIONS = [
++    { icon: PresentationChart, label: t("header_solution_dash"), href: "#showcase", desc: t("header_solution_dash_desc") },
++    { icon: FolderOpen, label: t("header_solution_inv"), href: "#features", desc: t("header_solution_inv_desc") },
++    { icon: DeviceTablet, label: t("header_solution_tablet"), href: "#features", desc: t("header_solution_tablet_desc") },
++    { icon: ShieldCheck, label: t("header_solution_gates"), href: "#products", desc: t("header_solution_gates_desc") },
++  ]
++
++  const RESOURCES = [
++    { icon: Article, label: t("header_resource_blog"), href: "#", desc: t("header_resource_blog_desc") },
++    { icon: BookOpenText, label: t("header_resource_docs"), href: "#", desc: t("header_resource_docs_desc") },
++    { icon: Headset, label: t("header_resource_support"), href: "#", desc: t("header_resource_support_desc") },
++  ]
++
++  const COMPANY = [
++    { icon: Info, label: t("header_company_about"), href: "#", desc: t("header_company_about_desc") },
++    { icon: Envelope, label: t("header_company_contact"), href: "#", desc: t("header_company_contact_desc") },
++  ]
++
+   return (
+-    <motion.header 
++    <div className="relative">
++    <motion.header
+       initial={{ y: -100 }}
+       animate={{ y: 0 }}
+       transition={{ type: "spring", stiffness: 100, damping: 20 }}
+-      className="fixed top-0 left-0 right-0 h-20 border-b border-border/30 bg-background/75 backdrop-blur-2xl z-50 px-6 md:px-12 flex items-center justify-between shadow-sm"
++      className="fixed top-0 left-0 right-0 h-20 border-b border-white/10 bg-[#0B0E11]/80 backdrop-blur-2xl z-50 px-6 md:px-12 flex items-center justify-between shadow-sm"
+     >
+       {/* Logo */}
+-      <Link href="/" className="flex items-center gap-3 group">
++      <Link href="/" className="flex items-center gap-3 group shrink-0">
+         {!imageError ? (
+-          <div className="h-10 w-auto flex items-center justify-start group-hover:scale-105 transition-transform origin-left">
+-            <img 
+-              src="/android-chrome-512x512.png" 
+-              alt="PROD_CORE Logo" 
+-              className="h-full w-auto object-contain rounded-xl"
++          <div className="flex items-center gap-3 group-hover:scale-105 transition-transform origin-left">
++            <img
++              src="/android-chrome-512x512.png"
++              alt="PROD_CORE Logo"
++              className="h-10 w-auto"
+               onError={() => setImageError(true)}
+             />
+-            <span className="font-display font-bold text-lg tracking-tight hidden sm:block ml-3">PROD_CORE</span>
++            <span className="font-display font-bold text-lg tracking-tight hidden sm:block text-white">PROD_CORE</span>
+           </div>
+         ) : (
+           <div className="flex items-center gap-3">
+-            <div className="w-10 h-10 bg-foreground text-background rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform">
++            <div className="w-10 h-10 bg-white text-[#0B0E11] rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform">
+               <Buildings weight="duotone" className="w-6 h-6" />
+             </div>
+-            <span className="font-display font-bold text-lg tracking-tight hidden sm:block">PROD_CORE</span>
++            <span className="font-display font-bold text-lg tracking-tight hidden sm:block text-white">PROD_CORE</span>
+           </div>
+         )}
+       </Link>
+ 
++      {/* Desktop Nav Tabs ─ center (shifted left for i18n room) */}
++      <nav className="hidden lg:flex items-center gap-0 absolute left-[calc(50%-2rem)] -translate-x-1/2">
++        <Link
++          href="/#showcase"
++          className="h-10 px-3 rounded-full text-sm font-medium text-white/60 hover:text-white hover:bg-white/5 transition-all flex items-center"
++        >
++          {t("header_why")}
++        </Link>
++
++        {/* Solutions dropdown */}
++        <div ref={solutionsRef} className="relative">
++          <button
++            onClick={() => { setSolutionsOpen(o => !o); setResourcesOpen(false); setCompanyOpen(false) }}
++            className="h-10 px-3 rounded-full text-sm font-medium text-white/60 hover:text-white hover:bg-white/5 transition-all flex items-center gap-1.5"
++          >
++            {t("header_solutions")} <CaretDown weight="bold" className={`w-3 h-3 transition-transform ${solutionsOpen ? "rotate-180" : ""}`} />
++          </button>
++          <AnimatePresence>
++            {solutionsOpen && (
++              <motion.div
++                initial={{ opacity: 0, y: -4, scale: 0.95 }}
++                animate={{ opacity: 1, y: 0, scale: 1 }}
++                exit={{ opacity: 0, y: -4, scale: 0.95 }}
++                transition={{ duration: 0.12 }}
++                className="absolute left-0 top-full mt-2 w-72 bg-[#14181C] border border-white/10 rounded-2xl shadow-2xl overflow-hidden p-2"
++              >
++                {SOLUTIONS.map((s, i) => (
++                  <Link
++                    key={i}
++                    href={"/" + s.href}
++                    className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-left hover:bg-white/5 transition-all group"
++                  >
++                    <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 group-hover:bg-emerald-500/10 group-hover:border-emerald-500/30 transition-all">
++                      <s.icon weight="duotone" className="w-5 h-5 text-white/40 group-hover:text-emerald-400" />
++                    </div>
++                    <div>
++                      <div className="text-sm font-medium text-white">{s.label}</div>
++                      <div className="text-xs text-white/40">{s.desc}</div>
++                    </div>
++                  </Link>
++                ))}
++              </motion.div>
++            )}
++          </AnimatePresence>
++        </div>
++
++        <Link
++          href="/#features"
++          className="h-10 px-3 rounded-full text-sm font-medium text-white/60 hover:text-white hover:bg-white/5 transition-all flex items-center"
++        >
++          {t("header_features")}
++        </Link>
++
++        <Link
++          href="/pricing"
++          className="h-10 px-3 rounded-full text-sm font-medium text-white/60 hover:text-white hover:bg-white/5 transition-all flex items-center"
++        >
++          {t("header_pricing")}
++        </Link>
++
++        {/* Resources dropdown */}
++        <div ref={resourcesRef} className="relative">
++          <button
++            onClick={() => { setResourcesOpen(o => !o); setSolutionsOpen(false); setCompanyOpen(false) }}
++            className="h-10 px-4 rounded-full text-sm font-medium text-white/60 hover:text-white hover:bg-white/5 transition-all flex items-center gap-1.5"
++          >
++            {t("header_resources")} <CaretDown weight="bold" className={`w-3 h-3 transition-transform ${resourcesOpen ? "rotate-180" : ""}`} />
++          </button>
++          <AnimatePresence>
++            {resourcesOpen && (
++              <motion.div
++                initial={{ opacity: 0, y: -4, scale: 0.95 }}
++                animate={{ opacity: 1, y: 0, scale: 1 }}
++                exit={{ opacity: 0, y: -4, scale: 0.95 }}
++                transition={{ duration: 0.12 }}
++                className="absolute left-0 top-full mt-2 w-64 bg-[#14181C] border border-white/10 rounded-2xl shadow-2xl overflow-hidden p-2"
++              >
++                {RESOURCES.map((r, i) => (
++                  <Link
++                    key={i}
++                    href={r.href}
++                    className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-left hover:bg-white/5 transition-all group"
++                  >
++                    <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 group-hover:bg-blue-500/10 group-hover:border-blue-500/30 transition-all">
++                      <r.icon weight="duotone" className="w-5 h-5 text-white/40 group-hover:text-blue-400" />
++                    </div>
++                    <div>
++                      <div className="text-sm font-medium text-white">{r.label}</div>
++                      <div className="text-xs text-white/40">{r.desc}</div>
++                    </div>
++                  </Link>
++                ))}
++              </motion.div>
++            )}
++          </AnimatePresence>
++        </div>
++
++        {/* Company dropdown */}
++        <div ref={companyRef} className="relative">
++          <button
++            onClick={() => { setCompanyOpen(o => !o); setSolutionsOpen(false); setResourcesOpen(false) }}
++            className="h-10 px-4 rounded-full text-sm font-medium text-white/60 hover:text-white hover:bg-white/5 transition-all flex items-center gap-1.5"
++          >
++            {t("header_company")} <CaretDown weight="bold" className={`w-3 h-3 transition-transform ${companyOpen ? "rotate-180" : ""}`} />
++          </button>
++          <AnimatePresence>
++            {companyOpen && (
++              <motion.div
++                initial={{ opacity: 0, y: -4, scale: 0.95 }}
++                animate={{ opacity: 1, y: 0, scale: 1 }}
++                exit={{ opacity: 0, y: -4, scale: 0.95 }}
++                transition={{ duration: 0.12 }}
++                className="absolute left-0 top-full mt-2 w-56 bg-[#14181C] border border-white/10 rounded-2xl shadow-2xl overflow-hidden p-2"
++              >
++                {COMPANY.map((c, i) => (
++                  <Link
++                    key={i}
++                    href={c.href}
++                    className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-left hover:bg-white/5 transition-all group"
++                  >
++                    <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 group-hover:bg-purple-500/10 group-hover:border-purple-500/30 transition-all">
++                      <c.icon weight="duotone" className="w-5 h-5 text-white/40 group-hover:text-purple-400" />
++                    </div>
++                    <div>
++                      <div className="text-sm font-medium text-white">{c.label}</div>
++                      <div className="text-xs text-white/40">{c.desc}</div>
++                    </div>
++                  </Link>
++                ))}
++              </motion.div>
++            )}
++          </AnimatePresence>
++        </div>
++      </nav>
++
+       {/* Right controls */}
+       <div className="flex items-center gap-2 md:gap-3">
+-        
++
+         {/* Language Dropdown */}
+-        <div ref={langRef} className="relative">
++        <div ref={langRef} className="relative hidden sm:block">
+           <button
+             id="lang-switcher"
+             onClick={() => setLangOpen(o => !o)}
+-            className="flex items-center gap-1.5 h-10 px-3 rounded-full text-sm font-mono tracking-widest font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
++            className="flex items-center gap-1.5 h-10 px-3 rounded-full text-sm font-mono tracking-widest font-semibold text-white/50 hover:text-white hover:bg-white/5 transition-all"
+           >
+             <Globe className="w-4 h-4" />
+             <span className="uppercase hidden sm:inline">{currentLang.code}</span>
+-            <motion.span
+-              animate={{ rotate: langOpen ? 180 : 0 }}
+-              transition={{ duration: 0.2 }}
+-            >
++            <motion.span animate={{ rotate: langOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+               <CaretDown className="w-3 h-3" />
+             </motion.span>
+           </button>
+-
+           <AnimatePresence>
+             {langOpen && (
+               <motion.div
+@@ -89,7 +247,7 @@ export function Header() {
+                 animate={{ opacity: 1, y: 0, scale: 1 }}
+                 exit={{ opacity: 0, y: -6, scale: 0.95 }}
+                 transition={{ duration: 0.15, ease: "easeOut" }}
+-                className="absolute right-0 top-[calc(100%+8px)] w-44 bg-card border border-border rounded-2xl shadow-xl overflow-hidden z-[60] p-1"
++                className="absolute right-0 top-[calc(100%+8px)] w-44 bg-[#14181C] border border-white/10 rounded-2xl shadow-xl overflow-hidden z-[60] p-1"
+               >
+                 {LANGUAGES.map(lang => (
+                   <button
+@@ -97,14 +255,14 @@ export function Header() {
+                     onClick={() => { setLanguage(lang.code); setLangOpen(false) }}
+                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors ${
+                       language === lang.code
+-                        ? "bg-foreground/10 text-foreground font-semibold"
+-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
++                        ? "bg-white/10 text-white font-semibold"
++                        : "text-white/50 hover:bg-white/5 hover:text-white"
+                     }`}
+                   >
+                     <span className="text-base">{lang.flag}</span>
+                     <span>{lang.label}</span>
+                     {language === lang.code && (
+-                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-foreground" />
++                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-white" />
+                     )}
+                   </button>
+                 ))}
+@@ -113,18 +271,68 @@ export function Header() {
+           </AnimatePresence>
+         </div>
+ 
+-        <ThemeToggle />
+-
+-        <Link href="/login">
+-          <motion.button 
++        <Link href="/login" className="hidden sm:block">
++          <motion.button
+             whileHover={{ scale: 1.05 }}
+             whileTap={{ scale: 0.95 }}
+-            className="h-10 px-5 bg-foreground text-background text-sm font-semibold rounded-full shadow-md hover:shadow-lg transition-shadow"
++            className="h-10 px-5 bg-white text-[#0B0E11] text-sm font-semibold rounded-full shadow-md hover:shadow-lg transition-shadow"
+           >
+             {t("header_signIn")}
+           </motion.button>
+         </Link>
++
++        {/* Mobile menu toggle */}
++        <button
++          onClick={() => setMobileOpen(o => !o)}
++          className="lg:hidden h-10 w-10 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/5 transition-all"
++        >
++          {mobileOpen ? <X weight="bold" className="w-5 h-5" /> : <List weight="bold" className="w-5 h-5" />}
++        </button>
+       </div>
+     </motion.header>
+-  )
++
++    {/* Mobile Menu (outside header to avoid transform stacking context breaking position:fixed) */}
++    <AnimatePresence>
++      {mobileOpen && (
++        <motion.div
++          initial={{ opacity: 0, y: -10 }}
++          animate={{ opacity: 1, y: 0 }}
++          exit={{ opacity: 0, y: -10 }}
++          className="fixed top-20 left-0 right-0 bottom-0 bg-[#0B0E11] border-t border-white/10 lg:hidden z-50 overflow-y-auto"
++        >
++          <div className="p-6 flex flex-col gap-1">
++            <Link href="/#showcase" onClick={() => setMobileOpen(false)} className="w-full text-left px-4 py-3 rounded-xl text-white/80 hover:text-white hover:bg-white/5 transition-all font-medium block">{t("header_why")}</Link>
++            <div className="px-4 py-3 text-white/40 text-xs font-mono tracking-widest uppercase">{t("header_solutions")}</div>
++            {SOLUTIONS.map((s, i) => (
++              <Link key={i} href={"/" + s.href} onClick={() => setMobileOpen(false)} className="w-full text-left px-4 py-3 rounded-xl text-white/70 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3 text-sm">
++                <s.icon weight="duotone" className="w-4 h-4 text-white/40" /> {s.label}
++              </Link>
++            ))}
++            <Link href="/#features" onClick={() => setMobileOpen(false)} className="w-full text-left px-4 py-3 rounded-xl text-white/80 hover:text-white hover:bg-white/5 transition-all font-medium mt-2 block">{t("header_features")}</Link>
++            <Link href="/pricing" onClick={() => setMobileOpen(false)} className="w-full text-left px-4 py-3 rounded-xl text-white/80 hover:text-white hover:bg-white/5 transition-all font-medium block">{t("header_pricing")}</Link>
++            <div className="px-4 py-3 text-white/40 text-xs font-mono tracking-widest uppercase mt-2">{t("header_resources")}</div>
++            {RESOURCES.map((r, i) => (
++              <Link key={i} href={r.href} className="w-full text-left px-4 py-3 rounded-xl text-white/70 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3 text-sm"
++              onClick={() => setMobileOpen(false)}>
++                <r.icon weight="duotone" className="w-4 h-4 text-white/40" /> {r.label}
++              </Link>
++            ))}
++            <div className="px-4 py-3 text-white/40 text-xs font-mono tracking-widest uppercase mt-2">{t("header_company")}</div>
++            {COMPANY.map((c, i) => (
++              <Link key={i} href={c.href} className="w-full text-left px-4 py-3 rounded-xl text-white/70 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3 text-sm"
++              onClick={() => setMobileOpen(false)}>
++                <c.icon weight="duotone" className="w-4 h-4 text-white/40" /> {c.label}
++              </Link>
++            ))}
++            <div className="mt-6 flex flex-col gap-3 px-2">
++              <Link href="/login" onClick={() => setMobileOpen(false)}>
++                <button className="w-full h-12 bg-white text-[#0B0E11] font-semibold rounded-full">{t("header_signIn")}</button>
++              </Link>
++            </div>
++          </div>
++        </motion.div>
++      )}
++    </AnimatePresence>
++  </div>
++)
+ }
+diff --git a/components/landing/HeroCarousel.tsx b/components/landing/HeroCarousel.tsx
+new file mode 100644
+index 0000000..4807f29
+--- /dev/null
++++ b/components/landing/HeroCarousel.tsx
+@@ -0,0 +1,158 @@
++"use client"
++
++import React, { useState, useEffect, useCallback } from "react"
++import { motion, AnimatePresence } from "framer-motion"
++import { ArrowRight, CaretLeft, CaretRight } from "@phosphor-icons/react"
++import Link from "next/link"
++import { useLanguage } from "@/providers/LanguageProvider"
++import type { DictionaryKeys } from "@/lib/i18n/dictionary"
++
++const SLIDES: { img: string; titleKey: DictionaryKeys; subKey: DictionaryKeys }[] = [
++  {
++    img: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=2000&q=80",
++    titleKey: "hero_slide1_title" as DictionaryKeys,
++    subKey: "hero_slide1_sub" as DictionaryKeys,
++  },
++  {
++    img: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?auto=format&fit=crop&w=2000&q=80",
++    titleKey: "hero_slide2_title" as DictionaryKeys,
++    subKey: "hero_slide2_sub" as DictionaryKeys,
++  },
++  {
++    img: "https://images.unsplash.com/photo-1581092795360-fd1ca04f0952?auto=format&fit=crop&w=2000&q=80",
++    titleKey: "hero_slide3_title" as DictionaryKeys,
++    subKey: "hero_slide3_sub" as DictionaryKeys,
++  },
++]
++
++export function HeroCarousel() {
++  const [current, setCurrent] = useState(0)
++  const [direction, setDirection] = useState(1)
++  const { t } = useLanguage()
++
++  const goTo = useCallback((idx: number) => {
++    setDirection(idx > current ? 1 : -1)
++    setCurrent(idx)
++  }, [current])
++
++  const next = useCallback(() => {
++    setDirection(1)
++    setCurrent(c => (c + 1) % SLIDES.length)
++  }, [])
++
++  const prev = useCallback(() => {
++    setDirection(-1)
++    setCurrent(c => (c - 1 + SLIDES.length) % SLIDES.length)
++  }, [])
++
++  useEffect(() => {
++    const timer = setInterval(next, 6000)
++    return () => clearInterval(timer)
++  }, [next])
++
++  const slide = SLIDES[current]
++
++  return (
++    <section className="relative w-full min-h-[100dvh] overflow-hidden">
++      <AnimatePresence initial={false} custom={direction}>
++        <motion.div
++          key={current}
++          custom={direction}
++          initial={{ opacity: 0 }}
++          animate={{ opacity: 1 }}
++          exit={{ opacity: 0 }}
++          transition={{ duration: 0.8, ease: "easeInOut" }}
++          className="absolute inset-0"
++        >
++          <img
++            src={slide.img}
++            alt=""
++            className="w-full h-full object-cover"
++          />
++          <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E11] via-[#0B0E11]/70 to-[#0B0E11]/30" />
++          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_#0B0E11_80%)]" />
++        </motion.div>
++      </AnimatePresence>
++
++      <div className="relative z-10 flex flex-col items-center justify-center min-h-[100dvh] px-6 md:px-12 pt-32 pb-24">
++        <AnimatePresence mode="wait" custom={direction}>
++          <motion.div
++            key={`content-${current}`}
++            initial={{ opacity: 0, y: 40 }}
++            animate={{ opacity: 1, y: 0 }}
++            exit={{ opacity: 0, y: -40 }}
++            transition={{ duration: 0.6, delay: 0.2 }}
++            className="flex flex-col items-center text-center max-w-4xl mx-auto"
++          >
++            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/10 mb-8">
++              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
++              <span className="text-xs font-mono font-semibold tracking-widest text-white/80 uppercase">PROD_CORE Engine v2.0</span>
++            </div>
++
++            <h1 className="text-5xl md:text-7xl lg:text-[5.5rem] font-display font-bold tracking-tighter leading-[1.05] text-white mb-6">
++              {t(slide.titleKey)}{" "}
++              <span className="text-transparent bg-clip-text bg-gradient-to-r from-white/90 to-white/40">
++                {t(slide.subKey)}
++              </span>
++            </h1>
++
++            <p className="text-lg md:text-xl text-white/60 max-w-2xl mb-10 leading-relaxed">
++              {t("hero_desc")}
++            </p>
++
++            <div className="flex flex-col sm:flex-row gap-4">
++              <Link href="/login">
++                <motion.button
++                  whileHover={{ scale: 1.04 }}
++                  whileTap={{ scale: 0.97 }}
++                  className="h-14 px-8 bg-white text-[#0B0E11] font-semibold rounded-full flex items-center gap-2 shadow-xl hover:shadow-white/25 transition-shadow"
++                >
++                  {t("hero_btn_enter")}
++                  <ArrowRight weight="bold" className="w-5 h-5" />
++                </motion.button>
++              </Link>
++              <Link href="#products">
++                <motion.button
++                  whileHover={{ scale: 1.04 }}
++                  whileTap={{ scale: 0.97 }}
++                  className="h-14 px-8 bg-white/10 text-white border border-white/20 font-semibold rounded-full flex items-center gap-2 backdrop-blur-md hover:bg-white/20 transition-all"
++                >
++                  {t("hero_btn_explore")}
++                </motion.button>
++              </Link>
++            </div>
++          </motion.div>
++        </AnimatePresence>
++      </div>
++
++      {/* Navigation arrows */}
++      <button
++        onClick={prev}
++        className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full bg-white/10 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-all"
++      >
++        <CaretLeft weight="bold" className="w-5 h-5" />
++      </button>
++      <button
++        onClick={next}
++        className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full bg-white/10 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-all"
++      >
++        <CaretRight weight="bold" className="w-5 h-5" />
++      </button>
++
++      {/* Dot indicators */}
++      <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3">
++        {SLIDES.map((_, idx) => (
++          <button
++            key={idx}
++            onClick={() => goTo(idx)}
++            className={`transition-all duration-500 rounded-full ${
++              idx === current
++                ? "w-10 h-2 bg-white"
++                : "w-2 h-2 bg-white/40 hover:bg-white/60"
++            }`}
++          />
++        ))}
++      </div>
++    </section>
++  )
++}
+diff --git a/components/landing/MarqueeBanner.tsx b/components/landing/MarqueeBanner.tsx
+new file mode 100644
+index 0000000..f661a98
+--- /dev/null
++++ b/components/landing/MarqueeBanner.tsx
+@@ -0,0 +1,31 @@
++"use client"
++
++import React from "react"
++import { motion } from "framer-motion"
++import { useLanguage } from "@/providers/LanguageProvider"
++
++export function MarqueeBanner() {
++  const { t } = useLanguage()
++
++  return (
++    <div className="relative w-full py-6 bg-[#0B0E11] border-y border-white/5 overflow-hidden">
++      <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-[#0B0E11] to-transparent z-10 pointer-events-none" />
++      <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-[#0B0E11] to-transparent z-10 pointer-events-none" />
++
++      <motion.div
++        animate={{ x: ["0%", "-50%"] }}
++        transition={{ repeat: Infinity, ease: "linear", duration: 30 }}
++        className="flex whitespace-nowrap min-w-max"
++      >
++        {[...Array(4)].map((_, i) => (
++          <span
++            key={i}
++            className="text-5xl md:text-6xl font-display font-bold tracking-tighter text-white/5 mx-8 select-none"
++          >
++            {t("marquee_text")}
++          </span>
++        ))}
++      </motion.div>
++    </div>
++  )
++}
+diff --git a/components/landing/ProductShowcase.tsx b/components/landing/ProductShowcase.tsx
+new file mode 100644
+index 0000000..879c92d
+--- /dev/null
++++ b/components/landing/ProductShowcase.tsx
+@@ -0,0 +1,130 @@
++"use client"
++
++import React from "react"
++import { motion } from "framer-motion"
++import { ArrowRight, PresentationChart, FolderOpen, DeviceTablet, ShieldCheck } from "@phosphor-icons/react"
++import Link from "next/link"
++import { useLanguage } from "@/providers/LanguageProvider"
++import type { DictionaryKeys } from "@/lib/i18n/dictionary"
++
++const PRODUCTS: { icon: React.ComponentType<any>; titleKey: DictionaryKeys; catKey: DictionaryKeys; descKey: DictionaryKeys; img: string; color: string }[] = [
++  {
++    icon: PresentationChart,
++    titleKey: "product_dashboard_title" as DictionaryKeys,
++    catKey: "product_dashboard_cat" as DictionaryKeys,
++    descKey: "product_dashboard_desc" as DictionaryKeys,
++    img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80",
++    color: "emerald",
++  },
++  {
++    icon: FolderOpen,
++    titleKey: "product_inventory_title" as DictionaryKeys,
++    catKey: "product_inventory_cat" as DictionaryKeys,
++    descKey: "product_inventory_desc" as DictionaryKeys,
++    img: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=800&q=80",
++    color: "amber",
++  },
++  {
++    icon: DeviceTablet,
++    titleKey: "product_tablet_title" as DictionaryKeys,
++    catKey: "product_tablet_cat" as DictionaryKeys,
++    descKey: "product_tablet_desc" as DictionaryKeys,
++    img: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=800&q=80",
++    color: "blue",
++  },
++  {
++    icon: ShieldCheck,
++    titleKey: "product_gates_title" as DictionaryKeys,
++    catKey: "product_gates_cat" as DictionaryKeys,
++    descKey: "product_gates_desc" as DictionaryKeys,
++    img: "https://images.unsplash.com/photo-1581092795360-fd1ca04f0952?auto=format&fit=crop&w=800&q=80",
++    color: "purple",
++  },
++]
++
++const COLOR_MAP: Record<string, { border: string; text: string; bg: string; btn: string }> = {
++  emerald: { border: "border-emerald-500/20", text: "text-emerald-400", bg: "bg-emerald-500/10", btn: "hover:bg-emerald-500 hover:text-white" },
++  amber: { border: "border-amber-500/20", text: "text-amber-400", bg: "bg-amber-500/10", btn: "hover:bg-amber-500 hover:text-white" },
++  blue: { border: "border-blue-500/20", text: "text-blue-400", bg: "bg-blue-500/10", btn: "hover:bg-blue-500 hover:text-white" },
++  purple: { border: "border-purple-500/20", text: "text-purple-400", bg: "bg-purple-500/10", btn: "hover:bg-purple-500 hover:text-white" },
++}
++
++export function ProductShowcase() {
++  const { t } = useLanguage()
++
++  return (
++    <section className="relative w-full py-24 md:py-32 px-6 md:px-12 bg-[#0B0E11]">
++      {/* Section header */}
++      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
++
++      <div className="max-w-7xl mx-auto">
++        <motion.div
++          initial={{ opacity: 0, y: 30 }}
++          whileInView={{ opacity: 1, y: 0 }}
++          viewport={{ once: true }}
++          className="text-center mb-16"
++        >
++          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-6">
++            <span className="w-1.5 h-1.5 rounded-full bg-white/40" />
++            <span className="text-xs font-mono font-semibold tracking-widest text-white/40 uppercase">{t("product_badge")}</span>
++          </div>
++          <h2 className="text-4xl md:text-5xl font-display font-bold tracking-tighter text-white">
++            {t("product_heading_title")}
++          </h2>
++          <p className="text-lg text-white/40 max-w-xl mx-auto mt-4">
++            {t("product_heading_desc")}
++          </p>
++        </motion.div>
++
++        {/* Product cards grid */}
++        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
++          {PRODUCTS.map((product, idx) => {
++            const colors = COLOR_MAP[product.color]
++            return (
++              <motion.div
++                key={idx}
++                initial={{ opacity: 0, y: 30 }}
++                whileInView={{ opacity: 1, y: 0 }}
++                viewport={{ once: true }}
++                transition={{ delay: idx * 0.1 }}
++                className="group relative bg-[#14181C] rounded-2xl border border-white/5 overflow-hidden hover:border-white/20 transition-all duration-300"
++              >
++                {/* Image area */}
++                <div className="relative h-48 overflow-hidden">
++                  <img
++                    src={product.img}
++                    alt=""
++                    className="w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-500"
++                  />
++                  <div className="absolute inset-0 bg-gradient-to-t from-[#14181C] via-[#14181C]/50 to-transparent" />
++
++                  {/* Category badge */}
++                  <div className="absolute top-3 left-3">
++                    <span className={`text-[10px] font-mono font-bold tracking-[0.15em] px-2.5 py-1 rounded-full ${colors.bg} ${colors.text} border ${colors.border}`}>
++                      {t(product.catKey)}
++                    </span>
++                  </div>
++                </div>
++
++                {/* Content */}
++                <div className="p-5 space-y-3">
++                  <div className="flex items-center gap-3">
++                    <product.icon weight="duotone" className={`w-5 h-5 ${colors.text}`} />
++                    <h3 className="text-white font-display font-bold text-base">{t(product.titleKey)}</h3>
++                  </div>
++                  <p className="text-sm text-white/40 leading-relaxed">{t(product.descKey)}</p>
++                  <Link
++                    href="/login"
++                    className={`inline-flex items-center gap-1.5 text-xs font-mono font-bold tracking-widest text-white/30 hover:text-white transition-colors ${colors.btn} rounded-full px-4 py-2 -ml-2 transition-all`}
++                  >
++                    {t("product_learn")} <ArrowRight weight="bold" className="w-3 h-3" />
++                  </Link>
++                </div>
++              </motion.div>
++            )
++          })}
++        </div>
++      </div>
++    </section>
++  )
++}
+diff --git a/components/landing/ScreenshotGallery.tsx b/components/landing/ScreenshotGallery.tsx
+new file mode 100644
+index 0000000..084b6cb
+--- /dev/null
++++ b/components/landing/ScreenshotGallery.tsx
+@@ -0,0 +1,123 @@
++"use client"
++
++import React, { useState } from "react"
++import { motion, AnimatePresence } from "framer-motion"
++import { X } from "@phosphor-icons/react"
++import { useLanguage } from "@/providers/LanguageProvider"
++import type { DictionaryKeys } from "@/lib/i18n/dictionary"
++
++const SCREENSHOTS = [
++  {
++    src: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80",
++    altKey: "gallery_img1" as DictionaryKeys,
++  },
++  {
++    src: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=600&q=80",
++    altKey: "gallery_img2" as DictionaryKeys,
++  },
++  {
++    src: "https://images.unsplash.com/photo-1553877522-43269d4ea984?auto=format&fit=crop&w=600&q=80",
++    altKey: "gallery_img3" as DictionaryKeys,
++  },
++  {
++    src: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=600&q=80",
++    altKey: "gallery_img4" as DictionaryKeys,
++  },
++  {
++    src: "https://images.unsplash.com/photo-1573164713988-8665fc963095?auto=format&fit=crop&w=600&q=80",
++    altKey: "gallery_img5" as DictionaryKeys,
++  },
++  {
++    src: "https://images.unsplash.com/photo-1581092795360-fd1ca04f0952?auto=format&fit=crop&w=600&q=80",
++    altKey: "gallery_img6" as DictionaryKeys,
++  },
++]
++
++export function ScreenshotGallery() {
++  const { t } = useLanguage()
++  const [selected, setSelected] = useState<number | null>(null)
++
++  return (
++    <>
++      <section className="relative w-full py-24 md:py-32 px-6 md:px-12 bg-[#0B0E11]">
++        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
++
++        <div className="max-w-7xl mx-auto">
++          <motion.div
++            initial={{ opacity: 0, y: 30 }}
++            whileInView={{ opacity: 1, y: 0 }}
++            viewport={{ once: true }}
++            className="text-center mb-16"
++          >
++            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-6">
++              <span className="w-1.5 h-1.5 rounded-full bg-white/40" />
++              <span className="text-xs font-mono font-semibold tracking-widest text-white/40 uppercase">{t("gallery_badge")}</span>
++            </div>
++            <h2 className="text-4xl md:text-5xl font-display font-bold tracking-tighter text-white">
++              {t("gallery_title")}
++            </h2>
++            <p className="text-lg text-white/40 max-w-xl mx-auto mt-4">
++              {t("gallery_desc")}
++            </p>
++          </motion.div>
++
++          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
++            {SCREENSHOTS.map((shot, idx) => (
++              <motion.button
++                key={idx}
++                initial={{ opacity: 0, scale: 0.9 }}
++                whileInView={{ opacity: 1, scale: 1 }}
++                viewport={{ once: true }}
++                transition={{ delay: idx * 0.05 }}
++                whileHover={{ scale: 1.02 }}
++                onClick={() => setSelected(idx)}
++                className={`relative overflow-hidden rounded-xl border border-white/5 hover:border-white/20 transition-all group ${
++                  idx === 0 ? "md:col-span-2 md:row-span-2" : "aspect-[4/3]"
++                }`}
++              >
++                <img
++                  src={shot.src}
++                  alt={t(shot.altKey)}
++                  className="w-full h-full object-cover opacity-70 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500"
++                />
++                <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E11] via-transparent to-transparent opacity-60" />
++                <div className="absolute bottom-3 left-3">
++                  <span className="text-xs font-mono font-semibold tracking-widest text-white/60">{t(shot.altKey)}</span>
++                </div>
++              </motion.button>
++            ))}
++          </div>
++        </div>
++      </section>
++
++      {/* Lightbox */}
++      <AnimatePresence>
++        {selected !== null && (
++          <motion.div
++            initial={{ opacity: 0 }}
++            animate={{ opacity: 1 }}
++            exit={{ opacity: 0 }}
++            onClick={() => setSelected(null)}
++            className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-lg flex items-center justify-center p-4 md:p-8 cursor-pointer"
++          >
++            <button
++              onClick={() => setSelected(null)}
++              className="absolute top-6 right-6 w-12 h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-all z-10"
++            >
++              <X weight="bold" className="w-5 h-5" />
++            </button>
++            <motion.img
++              key={selected}
++              initial={{ opacity: 0, scale: 0.9 }}
++              animate={{ opacity: 1, scale: 1 }}
++              exit={{ opacity: 0, scale: 0.9 }}
++              src={SCREENSHOTS[selected].src}
++              alt={t(SCREENSHOTS[selected].altKey)}
++              className="max-w-full max-h-full rounded-2xl shadow-2xl"
++            />
++          </motion.div>
++        )}
++      </AnimatePresence>
++    </>
++  )
++}
+diff --git a/components/landing/SmartShowcase.tsx b/components/landing/SmartShowcase.tsx
+new file mode 100644
+index 0000000..cd15b0d
+--- /dev/null
++++ b/components/landing/SmartShowcase.tsx
+@@ -0,0 +1,208 @@
++"use client"
++
++import React, { useState, useEffect } from "react"
++import { motion } from "framer-motion"
++import { ChartLineUp, ArrowRight, GearSix, Cube, CheckCircle } from "@phosphor-icons/react"
++import Link from "next/link"
++import { useLanguage } from "@/providers/LanguageProvider"
++
++const KPI_VALUES = [
++  { label: "Revenue", value: "$48.2k", color: "text-emerald-400" },
++  { label: "Margin", value: "+14.6%", color: "text-emerald-400" },
++  { label: "Orders", value: "1,892", color: "text-blue-400" },
++  { label: "Defect", value: "0.3%", color: "text-amber-400" },
++]
++
++const ROUTING_STEPS = [
++  { name: "Cutting", status: "done" },
++  { name: "CNC Routing", status: "active" },
++  { name: "Assembly", status: "pending" },
++  { name: "QC Check", status: "pending" },
++]
++
++export function SmartShowcase() {
++  const { t } = useLanguage()
++  const [activeKpi, setActiveKpi] = useState(0)
++
++  useEffect(() => {
++    const timer = setInterval(() => {
++      setActiveKpi(k => (k + 1) % KPI_VALUES.length)
++    }, 2000)
++    return () => clearInterval(timer)
++  }, [])
++
++  return (
++    <section className="relative w-full py-24 md:py-36 px-6 md:px-12 overflow-hidden bg-[#0B0E11]">
++      {/* Background glow */}
++      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-emerald-500/10 blur-[150px] rounded-full pointer-events-none" />
++      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
++      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
++
++      <div className="relative z-10 max-w-7xl mx-auto flex flex-col items-center">
++        {/* Badge */}
++        <motion.div
++          initial={{ opacity: 0, y: -10 }}
++          whileInView={{ opacity: 1, y: 0 }}
++          viewport={{ once: true }}
++          className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-md mb-10"
++        >
++          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
++          <span className="text-xs font-mono font-bold tracking-[0.15em] text-emerald-400 uppercase">
++            {t("showcase_badge")}
++          </span>
++        </motion.div>
++
++        {/* Title */}
++        <motion.h2
++          initial={{ opacity: 0, y: 30 }}
++          whileInView={{ opacity: 1, y: 0 }}
++          viewport={{ once: true }}
++          transition={{ delay: 0.1 }}
++          className="text-4xl md:text-6xl lg:text-7xl font-display font-bold tracking-tighter leading-[1.05] text-white text-center mb-6"
++        >
++          {t("showcase_title")}
++        </motion.h2>
++
++        <motion.p
++          initial={{ opacity: 0, y: 20 }}
++          whileInView={{ opacity: 1, y: 0 }}
++          viewport={{ once: true }}
++          transition={{ delay: 0.15 }}
++          className="text-lg text-white/50 max-w-2xl text-center mb-16 leading-relaxed"
++        >
++          {t("showcase_desc")}
++        </motion.p>
++
++        {/* Mockup + Info side by side */}
++        <div className="flex flex-col lg:flex-row items-center gap-16 w-full">
++          {/* Dashboard Mockup */}
++          <motion.div
++            initial={{ opacity: 0, x: -40 }}
++            whileInView={{ opacity: 1, x: 0 }}
++            viewport={{ once: true }}
++            transition={{ delay: 0.2 }}
++            className="flex-1 w-full max-w-2xl"
++          >
++            <div className="relative">
++              {/* Glow behind */}
++              <div className="absolute -inset-4 bg-gradient-to-b from-emerald-500/20 via-transparent to-transparent blur-2xl rounded-3xl" />
++
++              {/* Mockup frame */}
++              <div className="relative bg-[#14181C] rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
++                {/* Mockup header */}
++                <div className="h-12 bg-[#1A1F26] border-b border-white/5 flex items-center px-5 gap-3">
++                  <div className="flex gap-2">
++                    <div className="w-3 h-3 rounded-full bg-red-500/60" />
++                    <div className="w-3 h-3 rounded-full bg-amber-500/60" />
++                    <div className="w-3 h-3 rounded-full bg-emerald-500/60" />
++                  </div>
++                  <span className="text-xs font-mono text-white/30 ml-2">PROD_CORE — Executive Dashboard</span>
++                </div>
++
++                {/* Mockup body */}
++                <div className="p-6 space-y-6">
++                  {/* KPI Row */}
++                  <div className="grid grid-cols-4 gap-3">
++                    {KPI_VALUES.map((kpi, idx) => (
++                      <div
++                        key={idx}
++                        className={`rounded-xl p-4 border transition-all duration-700 ${
++                          idx === activeKpi
++                            ? "bg-emerald-500/10 border-emerald-500/30 shadow-lg shadow-emerald-500/10"
++                            : "bg-white/5 border-white/5"
++                        }`}
++                      >
++                        <span className="text-xs font-mono text-white/40 tracking-widest">{kpi.label}</span>
++                        <div className={`text-xl font-display font-bold mt-1 ${kpi.color}`}>{kpi.value}</div>
++                      </div>
++                    ))}
++                  </div>
++
++                  {/* Chart area */}
++                  <div className="h-32 bg-white/5 rounded-xl border border-white/5 flex items-center justify-center relative overflow-hidden">
++                    <div className="absolute bottom-0 left-0 right-0 h-20 flex items-end gap-2 px-6">
++                      {[40, 65, 45, 80, 55, 90, 70, 95, 60, 85].map((h, i) => (
++                        <motion.div
++                          key={i}
++                          initial={{ height: 0 }}
++                          whileInView={{ height: `${h}%` }}
++                          viewport={{ once: true }}
++                          transition={{ delay: 0.5 + i * 0.05, duration: 0.4 }}
++                          className="flex-1 bg-gradient-to-t from-emerald-500/40 to-emerald-400/20 rounded-t-sm"
++                        />
++                      ))}
++                    </div>
++                    <ChartLineUp weight="duotone" className="w-8 h-8 text-white/20" />
++                  </div>
++
++                  {/* Routing steps */}
++                  <div className="flex items-center gap-2">
++                    {ROUTING_STEPS.map((step, idx) => (
++                      <div
++                        key={idx}
++                        className={`flex-1 h-14 rounded-xl border flex items-center justify-center gap-2 text-xs font-mono font-semibold transition-all ${
++                          step.status === "active"
++                            ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400 shadow-lg shadow-emerald-500/10"
++                            : step.status === "done"
++                            ? "bg-white/5 border-white/10 text-white/40"
++                            : "bg-white/[0.02] border-white/5 text-white/20"
++                        }`}
++                      >
++                        {step.status === "done" && <CheckCircle weight="fill" className="w-3 h-3" />}
++                        {step.status === "active" && <GearSix weight="fill" className="w-3 h-3 animate-spin" />}
++                        {step.name}
++                      </div>
++                    ))}
++                  </div>
++                </div>
++              </div>
++            </div>
++          </motion.div>
++
++          {/* Feature highlights */}
++          <motion.div
++            initial={{ opacity: 0, x: 40 }}
++            whileInView={{ opacity: 1, x: 0 }}
++            viewport={{ once: true }}
++            transition={{ delay: 0.3 }}
++            className="flex-1 max-w-md space-y-6"
++          >
++            {[
++              { icon: ChartLineUp, title: t("showcase_feat1_title"), desc: t("showcase_feat1_desc") },
++              { icon: Cube, title: t("showcase_feat2_title"), desc: t("showcase_feat2_desc") },
++              { icon: GearSix, title: t("showcase_feat3_title"), desc: t("showcase_feat3_desc") },
++            ].map((item, idx) => (
++              <motion.div
++                key={idx}
++                initial={{ opacity: 0, y: 20 }}
++                whileInView={{ opacity: 1, y: 0 }}
++                viewport={{ once: true }}
++                transition={{ delay: 0.4 + idx * 0.1 }}
++                className="group flex gap-5 p-5 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-emerald-500/5 hover:border-emerald-500/20 transition-all cursor-default"
++              >
++                <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
++                  <item.icon weight="duotone" className="w-6 h-6 text-emerald-400" />
++                </div>
++                <div>
++                  <h3 className="text-white font-display font-bold text-base mb-1">{item.title}</h3>
++                  <p className="text-sm text-white/40 leading-relaxed">{item.desc}</p>
++                </div>
++              </motion.div>
++            ))}
++
++            <Link href="/login">
++              <motion.button
++                whileHover={{ scale: 1.03 }}
++                whileTap={{ scale: 0.97 }}
++                className="mt-4 h-12 px-6 bg-white text-[#0B0E11] font-semibold rounded-full flex items-center gap-2 shadow-lg hover:shadow-white/20 transition-all"
++              >
++                {t("showcase_btn")}
++                <ArrowRight weight="bold" className="w-4 h-4" />
++              </motion.button>
++            </Link>
++          </motion.div>
++        </div>
++      </div>
++    </section>
++  )
++}
+diff --git a/components/landing/StatsMarquee.tsx b/components/landing/StatsMarquee.tsx
+index 250aa23..429d8dc 100644
+--- a/components/landing/StatsMarquee.tsx
++++ b/components/landing/StatsMarquee.tsx
+@@ -17,29 +17,31 @@ export function StatsMarquee() {
+     { value: "< 20ms", label: t("stats_latency") },
+   ]
+ 
+-  // Duplicate to allow seamless scroll
+   const marqueeItems = [...stats, ...stats, ...stats]
+ 
+   return (
+-    <div 
+-      className="w-full border-y border-border/50 bg-card py-6 overflow-hidden flex relative"
++    <div
++      className="w-full bg-[#0B0E11] border-y border-white/5 py-10 overflow-hidden flex relative"
+       onMouseEnter={() => setIsHovered(true)}
+       onMouseLeave={() => setIsHovered(false)}
+     >
+-      <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+-      <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+-      
+-      <motion.div 
++      <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-[#0B0E11] to-transparent z-10 pointer-events-none" />
++      <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-[#0B0E11] to-transparent z-10 pointer-events-none" />
++
++      <motion.div
+         animate={{ x: ["0%", "-33.333333%"] }}
+         transition={{ repeat: Infinity, ease: "linear", duration: isHovered ? 60 : 25 }}
+         className="flex whitespace-nowrap min-w-max"
+       >
+         {marqueeItems.map((stat, idx) => (
+-          <div key={idx} className="flex items-baseline gap-3 px-12 border-l border-border/50 first:border-l-0">
+-            <span className="font-display font-bold text-3xl md:text-4xl text-foreground">
++          <div
++            key={idx}
++            className="flex items-center gap-8 px-16 border-l border-white/5 first:border-l-0"
++          >
++            <span className="font-display font-bold text-4xl md:text-5xl text-white">
+               {stat.value}
+             </span>
+-            <span className="font-mono text-xs font-semibold tracking-widest text-muted-foreground">
++            <span className="font-mono text-xs font-semibold tracking-[0.2em] text-white/30 uppercase">
+               {stat.label}
+             </span>
+           </div>
+diff --git a/lib/i18n/dictionary.ts b/lib/i18n/dictionary.ts
+index 206e732..a5e2421 100644
+--- a/lib/i18n/dictionary.ts
++++ b/lib/i18n/dictionary.ts
+@@ -2,6 +2,31 @@ export const dictionary = {
+   en: {
+     // Landing page
+     header_signIn: "Sign In",
++    header_why: "Why PROD_CORE",
++    header_solutions: "Solutions",
++    header_features: "Features",
++    header_pricing: "Pricing",
++    header_resources: "Resources",
++    header_company: "Company",
++    header_solution_dash: "Executive Dashboard",
++    header_solution_dash_desc: "Live financials & KPIs",
++    header_solution_inv: "Inventory & BOM",
++    header_solution_inv_desc: "Materials & routing",
++    header_solution_tablet: "Operator Tablet",
++    header_solution_tablet_desc: "Factory floor interface",
++    header_solution_gates: "Quality Gates",
++    header_solution_gates_desc: "QC checkpoints",
++    header_resource_blog: "Blog",
++    header_resource_blog_desc: "Articles & updates",
++    header_resource_docs: "Documentation",
++    header_resource_docs_desc: "Guides & API",
++    header_resource_support: "Support",
++    header_resource_support_desc: "Help center",
++    header_company_about: "About",
++    header_company_about_desc: "Our mission",
++    header_company_contact: "Contact",
++    header_company_contact_desc: "Get in touch",
++    header_get_started: "Get Started",
+     hero_badge: "PROD_CORE Engine v2.0 Live",
+     hero_title1: "Production management,",
+     hero_title2: "made effortlessly simple.",
+@@ -31,6 +56,166 @@ export const dictionary = {
+     cta_btn_start: "Get Started Free",
+     cta_btn_modules: "Explore Modules",
+ 
++    // Yooz-inspired hero carousel
++    hero_slide1_title: "Production Management,",
++    hero_slide1_sub: "Reimagined for Industry 4.0",
++    hero_slide2_title: "Real-Time Dashboard,",
++    hero_slide2_sub: "Live financials & operational KPIs",
++    hero_slide3_title: "Operator Tablet,",
++    hero_slide3_sub: "Built for the factory floor",
++
++    // Showcase section
++    showcase_badge: "SMART PRODUCTION TECH INNOVATION",
++    showcase_title: "The future of manufacturing is here.",
++    showcase_desc: "From the executive suite to the factory floor — every role, every process, every insight in one unified platform.",
++    showcase_btn: "Start Building",
++    showcase_feat1_title: "Real-Time KPI Tracking",
++    showcase_feat1_desc: "Watch your revenue, margins, and production metrics update in real-time.",
++    showcase_feat2_title: "Multi-Step Routing",
++    showcase_feat2_desc: "Visualize every production step from raw material to finished good.",
++    showcase_feat3_title: "Automatic Timer",
++    showcase_feat3_desc: "Each routing step has a timed countdown — production runs itself.",
++
++    // Feature cards
++    feature_realtime_title: "Live Dashboard",
++    feature_realtime_desc: "Real-time revenue, costs, margins, and operational KPIs at a glance.",
++    feature_bom_title: "BOM Studio",
++    feature_bom_desc: "Build complex Bills of Materials with multi-level components and versioning.",
++    feature_routing_title: "Routing Engine",
++    feature_routing_desc: "Design production routing sequences with timed steps and quality gates.",
++    feature_tablet_title: "Operator Tablet",
++    feature_tablet_desc: "Touch-first interface for the factory floor with resilient offline support.",
++    feature_inventory_title: "Inventory Tracking",
++    feature_inventory_desc: "Real-time material balances with low-stock alerts and consumption logs.",
++    feature_multitenant_title: "Multi-Tenant",
++    feature_multitenant_desc: "One account, multiple organizations — seamless switching between workspaces.",
++
++    // Marquee banner
++    marquee_text: "Production Management · Industry 4.0 · Smart Factory · Real-Time Analytics · Zero Waste · Precision Manufacturing ·",
++
++    // Product showcase cards
++    product_dashboard_title: "Executive Dashboard",
++    product_dashboard_cat: "MANAGEMENT",
++    product_dashboard_desc: "Full financial oversight with live cost tracking and margin analysis.",
++    product_inventory_title: "Inventory Hub",
++    product_inventory_cat: "LOGISTICS",
++    product_inventory_desc: "Complete material management with BOM integration and low-stock prevention.",
++    product_tablet_title: "Operator Console",
++    product_tablet_cat: "PRODUCTION",
++    product_tablet_desc: "Dedicated tablet interface for shop floor operators with timer and QC.",
++    product_gates_title: "Quality Gates",
++    product_gates_cat: "QUALITY",
++    product_gates_desc: "Independent checkpoints with pass/fail criteria and full traceability.",
++    product_heading_title: "Everything you need",
++    product_heading_desc: "Four integrated modules that work together seamlessly.",
++    product_learn: "Learn more",
++    product_badge: "Modules",
++    gallery_badge: "GALLERY",
++    gallery_title: "See it in action",
++    gallery_desc: "A glimpse into the PROD_CORE interface.",
++    gallery_img1: "Dashboard analytics overview",
++    gallery_img2: "Financial insights dashboard",
++    gallery_img3: "Production monitoring screen",
++    gallery_img4: "Inventory management interface",
++    gallery_img5: "Operator tablet station",
++    gallery_img6: "Quality control inspection",
++
++    // Pricing page
++    pricing_title: "Simple, transparent pricing",
++    pricing_desc: "Scale your production management. No hidden fees. No surprises.",
++    pricing_monthly: "Monthly",
++    pricing_annual: "Annual",
++    pricing_free: "Free",
++    pricing_free_desc: "Start with a free personalized demo.",
++    pricing_free_price: "0",
++    pricing_free_feat1: "1 production line",
++    pricing_free_feat2: "1 user",
++    pricing_free_feat3: "Basic dashboard & reports",
++    pricing_free_feat4: "Community support",
++    pricing_cta_demo: "Book a Demo",
++    pricing_startup: "Starter",
++    pricing_startup_desc: "For small workshops and individual producers.",
++    pricing_startup_price: "19",
++    pricing_startup_feat1: "1 production line",
++    pricing_startup_feat2: "3 users",
++    pricing_startup_feat3: "Basic dashboard & reports",
++    pricing_startup_feat4: "Email support",
++    pricing_pro: "Professional",
++    pricing_pro_desc: "For growing manufacturing businesses.",
++    pricing_pro_price: "49",
++    pricing_pro_feat1: "Up to 5 production lines",
++    pricing_pro_feat2: "10 users",
++    pricing_pro_feat3: "Advanced financial analytics",
++    pricing_pro_feat4: "Quality gate management",
++    pricing_pro_feat5: "Priority support",
++    pricing_enterprise: "Enterprise",
++    pricing_enterprise_desc: "For large-scale industrial operations.",
++    pricing_enterprise_price: "99",
++    pricing_enterprise_feat1: "Unlimited production lines",
++    pricing_enterprise_feat2: "Unlimited users",
++    pricing_enterprise_feat3: "Full analytics suite",
++    pricing_enterprise_feat4: "Custom integrations",
++    pricing_enterprise_feat5: "Dedicated account manager",
++    pricing_enterprise_feat6: "24/7 phone support",
++    pricing_cta: "Get Started",
++    pricing_cta_contact: "Contact Sales",
++    pricing_current: "Current Plan",
++    pricing_faq_title: "Frequently asked questions",
++    pricing_faq_1q: "Can I switch plans at any time?",
++    pricing_faq_1a: "Yes, you can upgrade or downgrade your plan at any time. Changes take effect immediately.",
++    pricing_faq_2q: "Is there a free plan?",
++    pricing_faq_2a: "Yes! We offer a Free plan with limited features — perfect for small workshops. Contact us for a personalized demo.",
++    pricing_faq_3q: "What payment methods do you accept?",
++    pricing_faq_3a: "We accept credit cards (Visa, Mastercard, Amex), bank transfers, and mobile money.",
++    pricing_faq_4q: "Can I cancel my subscription?",
++    pricing_faq_4a: "You can cancel anytime. Your access remains active until the end of the billing period.",
++    pricing_badge: "PRICING",
++    pricing_popular: "Most Popular",
++    pricing_enterprise_cta_title: "Need a custom plan?",
++    pricing_enterprise_cta_desc: "Contact our sales team for tailored pricing for your organization.",
++
++    // Demo page
++    demo_title: "Book Your Free Demo",
++    demo_desc: "Fill out the form below and we'll schedule a personalized walkthrough of PROD_CORE.",
++    demo_company: "Company Name",
++    demo_name: "Your Name",
++    demo_email: "Email Address",
++    demo_phone: "Phone Number",
++    demo_size: "Company Size",
++    demo_size_placeholder: "Select company size",
++    demo_size_1: "1-10 employees",
++    demo_size_2: "11-50 employees",
++    demo_size_3: "51-200 employees",
++    demo_size_4: "200+ employees",
++    demo_message: "Message (optional)",
++    demo_submit: "Request Demo",
++    demo_success_title: "Thank You!",
++    demo_success_desc: "We've received your demo request. Our team will contact you within 24 hours to schedule your personalized walkthrough.",
++    demo_footer: "No commitment required. We'll show you how PROD_CORE fits your workflow.",
++    demo_video_title: "Personalized video call",
++    demo_video_desc: "We'll set up a tailored demo for your specific workflow needs.",
++    demo_delay_title: "Within 24 hours",
++    demo_delay_desc: "Our team will get back to you promptly to schedule your walkthrough.",
++    demo_phone_placeholder: "+1 (555) 000-0000",
++    demo_message_placeholder: "Describe your production needs and goals...",
++    checkout_summary: "Order Summary",
++    checkout_billed_annual: "Billed annually",
++    checkout_billed_monthly: "Billed monthly",
++    checkout_save_annual: "Save 20% with annual billing",
++    checkout_payment_title: "Secure payment",
++    checkout_card_number: "Card number",
++    checkout_cardholder: "Cardholder name",
++    checkout_cardholder_placeholder: "John Doe",
++    checkout_expiry: "Expiry date",
++    checkout_expiry_placeholder: "MM/YY",
++    checkout_cvv: "CVV",
++    checkout_cvv_placeholder: "123",
++    checkout_card_placeholder: "4242 4242 4242 4242",
++    checkout_pay: "Pay",
++    checkout_success_title: "Payment confirmed!",
++    checkout_success_status: "Active",
++    checkout_success_desc: "A confirmation email has been sent. You will be redirected to your dashboard.",
++
+     // Landing Feature cards
+     landing_feature_title: "The people's choice for modern manufacturing.",
+     landing_feature_desc: "Whether you're a small business, an individual producer, or a growing enterprise, we bring absolute clarity and ease to your entire workflow.",
+@@ -436,6 +621,31 @@ export const dictionary = {
+   fr: {
+     // Landing page
+     header_signIn: "Se Connecter",
++    header_why: "Pourquoi PROD_CORE",
++    header_solutions: "Solutions",
++    header_features: "Fonctionnalités",
++    header_pricing: "Tarifs",
++    header_resources: "Ressources",
++    header_company: "Entreprise",
++    header_solution_dash: "Dashboard Exécutif",
++    header_solution_dash_desc: "Finances et KPI en direct",
++    header_solution_inv: "Inventaire & Nomenclature",
++    header_solution_inv_desc: "Matériaux et routage",
++    header_solution_tablet: "Tablette Opérateur",
++    header_solution_tablet_desc: "Interface atelier",
++    header_solution_gates: "Points de Contrôle Qualité",
++    header_solution_gates_desc: "Inspections qualité",
++    header_resource_blog: "Blog",
++    header_resource_blog_desc: "Articles et actualités",
++    header_resource_docs: "Documentation",
++    header_resource_docs_desc: "Guides et API",
++    header_resource_support: "Support",
++    header_resource_support_desc: "Centre d'aide",
++    header_company_about: "À propos",
++    header_company_about_desc: "Notre mission",
++    header_company_contact: "Contact",
++    header_company_contact_desc: "Nous écrire",
++    header_get_started: "Commencer",
+     hero_badge: "Moteur PROD_CORE v2.0 en Ligne",
+     hero_title1: "La gestion de production,",
+     hero_title2: "rendue incroyablement simple.",
+@@ -465,6 +675,166 @@ export const dictionary = {
+     cta_btn_start: "Démarrer Gratuitement",
+     cta_btn_modules: "Explorer les Modules",
+ 
++    // Yooz-inspired hero carousel
++    hero_slide1_title: "Gestion de Production,",
++    hero_slide1_sub: "Réinventée pour l'Industrie 4.0",
++    hero_slide2_title: "Tableau de Bord,",
++    hero_slide2_sub: "Finances en direct & KPIs opérationnels",
++    hero_slide3_title: "Tablette Opérateur,",
++    hero_slide3_sub: "Conçue pour l'atelier de production",
++
++    // Showcase section
++    showcase_badge: "INNOVATION TECHNOLOGIQUE DE PRODUCTION INTELLIGENTE",
++    showcase_title: "L'avenir de la production est arrivé.",
++    showcase_desc: "Du bureau exécutif à l'atelier — chaque rôle, chaque processus, chaque insight dans une plateforme unifiée.",
++    showcase_btn: "Commencer",
++    showcase_feat1_title: "Suivi des KPIs en Temps Réel",
++    showcase_feat1_desc: "Regardez vos revenus, marges et métriques de production évoluer en temps réel.",
++    showcase_feat2_title: "Routage Multi-Étapes",
++    showcase_feat2_desc: "Visualisez chaque étape de production, de la matière première au produit fini.",
++    showcase_feat3_title: "Minuteur Automatique",
++    showcase_feat3_desc: "Chaque étape de routage a un compte à rebours — la production tourne toute seule.",
++
++    // Feature cards
++    feature_realtime_title: "Tableau de Bord en Direct",
++    feature_realtime_desc: "Revenus, coûts, marges et KPIs opérationnels en temps réel en un coup d'œil.",
++    feature_bom_title: "Studio Nomenclature",
++    feature_bom_desc: "Construisez des nomenclatures complexes avec des composants multi-niveaux et versioning.",
++    feature_routing_title: "Moteur de Routage",
++    feature_routing_desc: "Concevez des séquences de production avec des étapes minutées et des contrôles qualité.",
++    feature_tablet_title: "Tablette Opérateur",
++    feature_tablet_desc: "Interface tactile résiliente pour l'atelier avec support hors-ligne.",
++    feature_inventory_title: "Suivi des Stocks",
++    feature_inventory_desc: "Soldes de matières en temps réel avec alertes de stock faible.",
++    feature_multitenant_title: "Multi-Tenant",
++    feature_multitenant_desc: "Un compte, plusieurs organisations — navigation fluide entre espaces de travail.",
++
++    // Marquee banner
++    marquee_text: "Gestion de Production · Industrie 4.0 · Usine Intelligente · Analyses en Temps Réel · Zéro Déchet · Production de Précision ·",
++
++    // Product showcase cards
++    product_dashboard_title: "Dashboard Exécutif",
++    product_dashboard_cat: "GESTION",
++    product_dashboard_desc: "Supervision financière complète avec suivi des coûts et analyse des marges.",
++    product_inventory_title: "Hub d'Inventaire",
++    product_inventory_cat: "LOGISTIQUE",
++    product_inventory_desc: "Gestion complète des matières avec intégration nomenclature et prévention des ruptures.",
++    product_tablet_title: "Console Opérateur",
++    product_tablet_cat: "PRODUCTION",
++    product_tablet_desc: "Interface dédiée pour les opérateurs avec minuteur et contrôle qualité.",
++    product_gates_title: "Points de Contrôle Qualité",
++    product_gates_cat: "QUALITÉ",
++    product_gates_desc: "Points de contrôle indépendants avec critères succès/échec et traçabilité.",
++    product_heading_title: "Tout ce dont vous avez besoin",
++    product_heading_desc: "Quatre modules intégrés qui fonctionnent ensemble en toute transparence.",
++    product_learn: "En savoir plus",
++    product_badge: "Modules",
++    gallery_badge: "GALERIE",
++    gallery_title: "Voir en action",
++    gallery_desc: "Un aperçu de l'interface PROD_CORE.",
++    gallery_img1: "Aperçu du tableau de bord analytique",
++    gallery_img2: "Tableau de bord des insights financiers",
++    gallery_img3: "Écran de suivi de production",
++    gallery_img4: "Interface de gestion des stocks",
++    gallery_img5: "Poste de travail tablette opérateur",
++    gallery_img6: "Inspection de contrôle qualité",
++
++    // Pricing page
++    pricing_title: "Tarifs simples et transparents",
++    pricing_desc: "Adaptez votre gestion de production. Sans frais cachés. Sans surprises.",
++    pricing_monthly: "Mensuel",
++    pricing_annual: "Annuel",
++    pricing_free: "Gratuit",
++    pricing_free_desc: "Commencez avec une démo personnalisée gratuite.",
++    pricing_free_price: "0",
++    pricing_free_feat1: "1 ligne de production",
++    pricing_free_feat2: "1 utilisateur",
++    pricing_free_feat3: "Dashboard & rapports de base",
++    pricing_free_feat4: "Support communautaire",
++    pricing_cta_demo: "Réserver une Démo",
++    pricing_startup: "Démarrage",
++    pricing_startup_desc: "Pour les petits ateliers et producteurs individuels.",
++    pricing_startup_price: "19",
++    pricing_startup_feat1: "1 ligne de production",
++    pricing_startup_feat2: "3 utilisateurs",
++    pricing_startup_feat3: "Dashboard & rapports de base",
++    pricing_startup_feat4: "Support par email",
++    pricing_pro: "Professionnel",
++    pricing_pro_desc: "Pour les entreprises de production en croissance.",
++    pricing_pro_price: "49",
++    pricing_pro_feat1: "Jusqu'à 5 lignes de production",
++    pricing_pro_feat2: "10 utilisateurs",
++    pricing_pro_feat3: "Analyses financières avancées",
++    pricing_pro_feat4: "Gestion des points de contrôle qualité",
++    pricing_pro_feat5: "Support prioritaire",
++    pricing_enterprise: "Entreprise",
++    pricing_enterprise_desc: "Pour les opérations industrielles à grande échelle.",
++    pricing_enterprise_price: "99",
++    pricing_enterprise_feat1: "Lignes de production illimitées",
++    pricing_enterprise_feat2: "Utilisateurs illimités",
++    pricing_enterprise_feat3: "Suite d'analyse complète",
++    pricing_enterprise_feat4: "Intégrations personnalisées",
++    pricing_enterprise_feat5: "Gestion de compte dédié",
++    pricing_enterprise_feat6: "Support téléphonique 24/7",
++    pricing_cta: "Commencer",
++    pricing_cta_contact: "Contacter les Ventes",
++    pricing_current: "Plan Actuel",
++    pricing_faq_title: "Questions fréquemment posées",
++    pricing_faq_1q: "Puis-je changer de plan à tout moment ?",
++    pricing_faq_1a: "Oui, vous pouvez passer à un plan supérieur ou inférieur à tout moment. Les changements prennent effet immédiatement.",
++    pricing_faq_2q: "Y a-t-il un plan gratuit ?",
++    pricing_faq_2a: "Oui ! Nous proposons un plan Gratuit avec des fonctionnalités limitées — parfait pour les petits ateliers. Contactez-nous pour une démo personnalisée.",
++    pricing_faq_3q: "Quels modes de paiement acceptez-vous ?",
++    pricing_faq_3a: "Nous acceptons les cartes de crédit (Visa, Mastercard, Amex), les virements bancaires et l'argent mobile.",
++    pricing_faq_4q: "Puis-je annuler mon abonnement ?",
++    pricing_faq_4a: "Vous pouvez annuler à tout moment. Votre accès reste actif jusqu'à la fin de la période de facturation.",
++    pricing_badge: "TARIFS",
++    pricing_popular: "Le Plus Populaire",
++    pricing_enterprise_cta_title: "Vous avez besoin d'un plan sur mesure ?",
++    pricing_enterprise_cta_desc: "Contactez notre équipe commerciale pour une tarification adaptée à votre organisation.",
++
++    // Demo page
++    demo_title: "Réservez votre Démo Gratuite",
++    demo_desc: "Remplissez le formulaire ci-dessous et nous planifierons une visite personnalisée de PROD_CORE.",
++    demo_company: "Nom de l'Entreprise",
++    demo_name: "Votre Nom",
++    demo_email: "Adresse Email",
++    demo_phone: "Numéro de Téléphone",
++    demo_size: "Taille de l'Entreprise",
++    demo_size_placeholder: "Sélectionnez la taille",
++    demo_size_1: "1-10 employés",
++    demo_size_2: "11-50 employés",
++    demo_size_3: "51-200 employés",
++    demo_size_4: "200+ employés",
++    demo_message: "Message (optionnel)",
++    demo_submit: "Demander une Démo",
++    demo_success_title: "Merci !",
++    demo_success_desc: "Nous avons reçu votre demande de démo. Notre équipe vous contactera sous 24h pour planifier votre visite personnalisée.",
++    demo_footer: "Aucun engagement requis. Nous vous montrerons comment PROD_CORE s'adapte à votre flux de travail.",
++    demo_video_title: "Vidéo personnalisée",
++    demo_video_desc: "Nous organiserons une démo adaptée à vos besoins spécifiques.",
++    demo_delay_title: "Sous 24 heures",
++    demo_delay_desc: "Notre équipe vous recontactera rapidement pour planifier votre visite.",
++    demo_phone_placeholder: "+237 6XX XXX XXX",
++    demo_message_placeholder: "Décrivez vos besoins de production...",
++    checkout_summary: "Récapitulatif de la commande",
++    checkout_billed_annual: "Facturé annuellement",
++    checkout_billed_monthly: "Facturé mensuellement",
++    checkout_save_annual: "Économisez 20 % avec la facturation annuelle",
++    checkout_payment_title: "Paiement sécurisé",
++    checkout_card_number: "Numéro de carte",
++    checkout_cardholder: "Titulaire de la carte",
++    checkout_cardholder_placeholder: "Jean Dupont",
++    checkout_expiry: "Date d'expiration",
++    checkout_expiry_placeholder: "MM/AA",
++    checkout_cvv: "CVV",
++    checkout_cvv_placeholder: "123",
++    checkout_card_placeholder: "4242 4242 4242 4242",
++    checkout_pay: "Payer",
++    checkout_success_title: "Paiement confirmé !",
++    checkout_success_status: "Actif",
++    checkout_success_desc: "Un email de confirmation a été envoyé. Vous serez redirigé vers votre tableau de bord.",
++
+     // Landing Feature cards
+     landing_feature_title: "Le choix par excellence pour la production moderne.",
+     landing_feature_desc: "Que vous soyez une petite entreprise, un producteur individuel ou une grande structure, nous apportons une clarté absolue à votre flux de travail.",
+@@ -866,6 +1236,31 @@ export const dictionary = {
+   es: {
+     // Landing page
+     header_signIn: "Iniciar sesión",
++    header_why: "Por qué PROD_CORE",
++    header_solutions: "Soluciones",
++    header_features: "Características",
++    header_pricing: "Precios",
++    header_resources: "Recursos",
++    header_company: "Empresa",
++    header_solution_dash: "Dashboard Ejecutivo",
++    header_solution_dash_desc: "Finanzas y KPI en vivo",
++    header_solution_inv: "Inventario y BOM",
++    header_solution_inv_desc: "Materiales y enrutamiento",
++    header_solution_tablet: "Tableta Operador",
++    header_solution_tablet_desc: "Interfaz de taller",
++    header_solution_gates: "Puntos de Control de Calidad",
++    header_solution_gates_desc: "Inspecciones de calidad",
++    header_resource_blog: "Blog",
++    header_resource_blog_desc: "Artículos y novedades",
++    header_resource_docs: "Documentación",
++    header_resource_docs_desc: "Guías y API",
++    header_resource_support: "Soporte",
++    header_resource_support_desc: "Centro de ayuda",
++    header_company_about: "Acerca de",
++    header_company_about_desc: "Nuestra misión",
++    header_company_contact: "Contacto",
++    header_company_contact_desc: "Escríbenos",
++    header_get_started: "Comenzar",
+     hero_badge: "Motor PROD_CORE v2.0 en Vivo",
+     hero_title1: "Gestión de producción,",
+     hero_title2: "hecha increíblemente simple.",
+@@ -895,6 +1290,166 @@ export const dictionary = {
+     cta_btn_start: "Comenzar Gratis",
+     cta_btn_modules: "Explorar Módulos",
+ 
++    // Yooz-inspired hero carousel
++    hero_slide1_title: "Gestión de Producción,",
++    hero_slide1_sub: "Reimaginada para Industria 4.0",
++    hero_slide2_title: "Dashboard en Vivo,",
++    hero_slide2_sub: "Finanzas en tiempo real & KPIs operativos",
++    hero_slide3_title: "Tableta del Operador,",
++    hero_slide3_sub: "Construida para el piso de fábrica",
++
++    // Showcase section
++    showcase_badge: "INNOVACIÓN TECNOLÓGICA DE PRODUCCIÓN INTELIGENTE",
++    showcase_title: "El futuro de la fabricación está aquí.",
++    showcase_desc: "Desde la suite ejecutiva hasta el piso de fábrica — cada rol, cada proceso, cada insight en una plataforma unificada.",
++    showcase_btn: "Comenzar",
++    showcase_feat1_title: "Seguimiento de KPIs en Tiempo Real",
++    showcase_feat1_desc: "Observa tus ingresos, márgenes y métricas de producción actualizarse en tiempo real.",
++    showcase_feat2_title: "Enrutamiento Multi-Paso",
++    showcase_feat2_desc: "Visualiza cada paso de producción, desde la materia prima hasta el producto terminado.",
++    showcase_feat3_title: "Temporizador Automático",
++    showcase_feat3_desc: "Cada paso de enrutamiento tiene una cuenta regresiva — la producción funciona sola.",
++
++    // Feature cards
++    feature_realtime_title: "Dashboard en Vivo",
++    feature_realtime_desc: "Ingresos, costos, márgenes y KPIs operativos en tiempo real de un vistazo.",
++    feature_bom_title: "Estudio BOM",
++    feature_bom_desc: "Construye BOMs complejas con componentes multinivel y versionado.",
++    feature_routing_title: "Motor de Enrutamiento",
++    feature_routing_desc: "Diseña secuencias de enrutamiento con pasos temporizados y controles de calidad.",
++    feature_tablet_title: "Tableta del Operador",
++    feature_tablet_desc: "Interfaz táctil resistente para el piso de fábrica con soporte offline.",
++    feature_inventory_title: "Seguimiento de Inventario",
++    feature_inventory_desc: "Saldos de materiales en tiempo real con alertas de stock bajo.",
++    feature_multitenant_title: "Multi-Inquilino",
++    feature_multitenant_desc: "Una cuenta, múltiples organizaciones — cambio fluido entre espacios de trabajo.",
++
++    // Marquee banner
++    marquee_text: "Gestión de Producción · Industria 4.0 · Fábrica Inteligente · Análisis en Tiempo Real · Cero Residuos · Fabricación de Precisión ·",
++
++    // Product showcase cards
++    product_dashboard_title: "Dashboard Ejecutivo",
++    product_dashboard_cat: "GESTIÓN",
++    product_dashboard_desc: "Supervisión financiera completa con seguimiento de costos y análisis de márgenes.",
++    product_inventory_title: "Hub de Inventario",
++    product_inventory_cat: "LOGÍSTICA",
++    product_inventory_desc: "Gestión completa de materiales con integración BOM y prevención de faltantes.",
++    product_tablet_title: "Consola del Operador",
++    product_tablet_cat: "PRODUCCIÓN",
++    product_tablet_desc: "Interfaz dedicada para operadores con temporizador y control de calidad.",
++    product_gates_title: "Puntos de Control de Calidad",
++    product_gates_cat: "CALIDAD",
++    product_gates_desc: "Puntos de control independientes con criterios de aprobación y trazabilidad.",
++    product_heading_title: "Todo lo que necesitas",
++    product_heading_desc: "Cuatro módulos integrados que funcionan juntos sin problemas.",
++    product_learn: "Más información",
++    product_badge: "Módulos",
++    gallery_badge: "GALERÍA",
++    gallery_title: "Ver en acción",
++    gallery_desc: "Un vistazo a la interfaz de PROD_CORE.",
++    gallery_img1: "Vista general del panel analítico",
++    gallery_img2: "Panel de insights financieros",
++    gallery_img3: "Pantalla de monitoreo de producción",
++    gallery_img4: "Interfaz de gestión de inventario",
++    gallery_img5: "Puesto de tableta del operador",
++    gallery_img6: "Inspección de control de calidad",
++
++    // Pricing page
++    pricing_title: "Precios simples y transparentes",
++    pricing_desc: "Escala tu gestión de producción. Sin costos ocultos. Sin sorpresas.",
++    pricing_monthly: "Mensual",
++    pricing_annual: "Anual",
++    pricing_free: "Gratis",
++    pricing_free_desc: "Comienza con una demo personalizada gratuita.",
++    pricing_free_price: "0",
++    pricing_free_feat1: "1 línea de producción",
++    pricing_free_feat2: "1 usuario",
++    pricing_free_feat3: "Dashboard e informes básicos",
++    pricing_free_feat4: "Soporte comunitario",
++    pricing_cta_demo: "Reservar una Demo",
++    pricing_startup: "Inicial",
++    pricing_startup_desc: "Para talleres pequeños y productores individuales.",
++    pricing_startup_price: "19",
++    pricing_startup_feat1: "1 línea de producción",
++    pricing_startup_feat2: "3 usuarios",
++    pricing_startup_feat3: "Dashboard e informes básicos",
++    pricing_startup_feat4: "Soporte por correo electrónico",
++    pricing_pro: "Profesional",
++    pricing_pro_desc: "Para negocios de fabricación en crecimiento.",
++    pricing_pro_price: "49",
++    pricing_pro_feat1: "Hasta 5 líneas de producción",
++    pricing_pro_feat2: "10 usuarios",
++    pricing_pro_feat3: "Análisis financieros avanzados",
++    pricing_pro_feat4: "Gestión de puntos de control de calidad",
++    pricing_pro_feat5: "Soporte prioritario",
++    pricing_enterprise: "Empresa",
++    pricing_enterprise_desc: "Para operaciones industriales a gran escala.",
++    pricing_enterprise_price: "99",
++    pricing_enterprise_feat1: "Líneas de producción ilimitadas",
++    pricing_enterprise_feat2: "Usuarios ilimitados",
++    pricing_enterprise_feat3: "Suite de análisis completa",
++    pricing_enterprise_feat4: "Integraciones personalizadas",
++    pricing_enterprise_feat5: "Gerente de cuenta dedicado",
++    pricing_enterprise_feat6: "Soporte telefónico 24/7",
++    pricing_cta: "Comenzar",
++    pricing_cta_contact: "Contactar Ventas",
++    pricing_current: "Plan Actual",
++    pricing_faq_title: "Preguntas frecuentes",
++    pricing_faq_1q: "¿Puedo cambiar de plan en cualquier momento?",
++    pricing_faq_1a: "Sí, puedes actualizar o cambiar a un plan inferior en cualquier momento. Los cambios surten efecto de inmediato.",
++    pricing_faq_2q: "¿Hay un plan gratuito?",
++    pricing_faq_2a: "¡Sí! Ofrecemos un plan Gratis con funciones limitadas — perfecto para talleres pequeños. Contáctenos para una demo personalizada.",
++    pricing_faq_3q: "¿Qué métodos de pago aceptan?",
++    pricing_faq_3a: "Aceptamos tarjetas de crédito (Visa, Mastercard, Amex), transferencias bancarias y dinero móvil.",
++    pricing_faq_4q: "¿Puedo cancelar mi suscripción?",
++    pricing_faq_4a: "Puedes cancelar en cualquier momento. Tu acceso permanece activo hasta el final del período de facturación.",
++    pricing_badge: "PRECIOS",
++    pricing_popular: "Más Popular",
++    pricing_enterprise_cta_title: "¿Necesitas un plan personalizado?",
++    pricing_enterprise_cta_desc: "Contacta a nuestro equipo de ventas para obtener precios adaptados a tu organización.",
++
++    // Demo page
++    demo_title: "Reserve su Demo Gratuita",
++    demo_desc: "Complete el formulario a continuación y programaremos un recorrido personalizado de PROD_CORE.",
++    demo_company: "Nombre de la Empresa",
++    demo_name: "Su Nombre",
++    demo_email: "Dirección de Correo",
++    demo_phone: "Número de Teléfono",
++    demo_size: "Tamaño de la Empresa",
++    demo_size_placeholder: "Seleccione el tamaño",
++    demo_size_1: "1-10 empleados",
++    demo_size_2: "11-50 empleados",
++    demo_size_3: "51-200 empleados",
++    demo_size_4: "200+ empleados",
++    demo_message: "Mensaje (opcional)",
++    demo_submit: "Solicitar Demo",
++    demo_success_title: "¡Gracias!",
++    demo_success_desc: "Hemos recibido su solicitud de demo. Nuestro equipo lo contactará dentro de 24 horas para programar su recorrido personalizado.",
++    demo_footer: "Sin compromiso. Le mostraremos cómo PROD_CORE se adapta a su flujo de trabajo.",
++    demo_video_title: "Videollamada personalizada",
++    demo_video_desc: "Organizaremos una demo adaptada a las necesidades específicas de su flujo de trabajo.",
++    demo_delay_title: "Dentro de 24 horas",
++    demo_delay_desc: "Nuestro equipo se comunicará con usted rápidamente para programar su recorrido.",
++    demo_phone_placeholder: "+52 55 XXXX XXXX",
++    demo_message_placeholder: "Describa sus necesidades y objetivos de producción...",
++    checkout_summary: "Resumen del pedido",
++    checkout_billed_annual: "Facturado anualmente",
++    checkout_billed_monthly: "Facturado mensualmente",
++    checkout_save_annual: "Ahorre 20 % con facturación anual",
++    checkout_payment_title: "Pago seguro",
++    checkout_card_number: "Número de tarjeta",
++    checkout_cardholder: "Titular de la tarjeta",
++    checkout_cardholder_placeholder: "Juan Pérez",
++    checkout_expiry: "Fecha de vencimiento",
++    checkout_expiry_placeholder: "MM/AA",
++    checkout_cvv: "CVV",
++    checkout_cvv_placeholder: "123",
++    checkout_card_placeholder: "4242 4242 4242 4242",
++    checkout_pay: "Pagar",
++    checkout_success_title: "¡Pago confirmado!",
++    checkout_success_status: "Activo",
++    checkout_success_desc: "Se ha enviado un correo de confirmación. Será redirigido a su panel de control.",
++
+     // Landing Feature cards
+     landing_feature_title: "La opción preferida para la fabricación moderna.",
+     landing_feature_desc: "Tanto si eres una pequeña empresa, un productor individual o una gran empresa, aportamos claridad total a tu flujo de trabajo.",

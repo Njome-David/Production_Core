@@ -15,7 +15,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<Language>("en")
 
   const t = useCallback((key: DictionaryKeys) => {
-    return dictionary[language][key]
+    return (dictionary[language] as Record<DictionaryKeys, string>)[key]
   }, [language])
 
   return (

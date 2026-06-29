@@ -1,27 +1,40 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useResilientChronometer } from "@/hooks/useResilientChronometer"
+import { useAuth } from "@/providers/AuthProvider"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
 import { Play, Pause, Drop, CheckCircle, PresentationChart, Trash, CaretLeft, HardDrives } from "@phosphor-icons/react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useLanguage } from "@/providers/LanguageProvider"
 
 export default function OperatorTabletPage() {
-  const { activeSession, activeMOs, setMOStatus, materials, updateMO, machines, products, qualityGates } = useMockData()
+  const router = useRouter()
+  const { user } = useAuth()
+  const { activeSession, activeMOs, setMOStatus, materials, updateMO, machines, products, qualityGates, machineAssignments } = useMockData()
   const { t } = useLanguage()
+
+  // Verify the active station is assigned to this operator
+  useEffect(() => {
+    if (!activeSession?.active_station || !user) return
+    if (activeSession.station_type === "machine") {
+      const assigned = machineAssignments.some(
+        a => a.machineId === activeSession.active_station && a.operatorId === user.id
+      )
+      if (!assigned) {
+        router.replace("/operator/select-station")
+      }
+    }
+  }, [activeSession, machineAssignments, user, router])
   type RightTab = "bom" | "product_info" | "qc_params"
   const [rightTab, setRightTab] = useState<RightTab>("bom")
   
-  // QC gate state
   const [showQcModal, setShowQcModal] = useState(false)
   const [qcPassedCount, setQcPassedCount] = useState<number>(0)
   const isGateStation = activeSession?.station_type === "gate"
-  const activeMachine = isGateStation ? null : machines.find(m => m.id === activeSession?.active_station)
-  const activeGate = isGateStation ? qualityGates.find(g => g.id === activeSession?.active_station) : null
 
-  // Operator Logs State
   const [operatorLogs, setOperatorLogs] = useState<{timestamp: string, text: string}[]>([
     { timestamp: "08:14:22", text: "Moisture levels calibrated and approved." },
     { timestamp: "08:30:45", text: "Bulk solid silo pre-feed flow rate stable at 240kg/min." }
@@ -48,7 +61,6 @@ export default function OperatorTabletPage() {
       return a.id.localeCompare(b.id)
     })[0]
 
-  // Compute total duration for countdown based on current station
   const product = currentMO ? products.find(p => p.id === currentMO.productId) : null
   const currentSeq = currentMO?.currentSequence || 1
   const totalSeconds = React.useMemo(() => {
@@ -125,7 +137,6 @@ export default function OperatorTabletPage() {
       baseUpdates.passedQCBatches = passedQC
     }
 
-    // If we are at a gate station, completing means resuming to next machine
     if (isGateStation) {
       const currentIndex = routing.findIndex(r => r.sequence === currentSequence)
       if (currentIndex !== -1 && currentIndex < routing.length - 1) {
@@ -138,12 +149,10 @@ export default function OperatorTabletPage() {
       return
     }
 
-    // Machine station: check if a gate is attached after this sequence
     const currentIndex = routing.findIndex(r => r.sequence === currentSequence)
     const attachedGate = gates.find(g => g.sequenceAfter === currentSequence)
 
     if (attachedGate) {
-      // Route to quality gate
       updateMO(currentMO.id, { ...baseUpdates, machineId: undefined, currentGateId: attachedGate.gateId, status: "PENDING" })
     } else if (currentIndex !== -1 && currentIndex < routing.length - 1) {
       const nextStep = routing[currentIndex + 1]
@@ -175,9 +184,6 @@ export default function OperatorTabletPage() {
   const handleLogScrap = (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedScrapMaterial || scrapQty <= 0) return
-    
-    // In a real app, this would deduct from line-side inventory and log to a scrap table.
-    // We'll just close the modal for the mock.
     console.log(`Logged ${scrapQty} of ${selectedScrapMaterial} as scrap.`)
     setShowScrapModal(false)
     setScrapQty(0)
@@ -244,9 +250,7 @@ export default function OperatorTabletPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1">
-            {/* Target Spec & Operator Logs Container */}
             <div className="flex flex-col gap-6">
-              {/* Target Spec Card */}
               <div className="bg-card border border-border rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-bl-[80px] pointer-events-none"></div>
                 <div>
@@ -256,7 +260,6 @@ export default function OperatorTabletPage() {
                   </div>
                 </div>
                 
-                {/* Countdown progress bar */}
                 {totalSeconds > 0 && (
                   <div className="mt-6 flex flex-col gap-2">
                     <div className="flex justify-between text-xs">
@@ -273,11 +276,9 @@ export default function OperatorTabletPage() {
                 )}
               </div>
 
-              {/* Real-time Operator Logs panel (directly under target card) */}
               <div className="bg-card border border-border rounded-2xl p-6 flex flex-col flex-1 gap-4 overflow-hidden">
                 <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">{t("tablet_notes")}</span>
                 
-                {/* Scrollable list */}
                 <div className="flex-1 overflow-y-auto max-h-[140px] flex flex-col gap-2 pr-1">
                   {operatorLogs.map((log, idx) => (
                     <div key={idx} className="flex gap-2 text-xs items-start bg-muted/30 p-2.5 rounded-xl border border-border/30">
@@ -287,7 +288,6 @@ export default function OperatorTabletPage() {
                   ))}
                 </div>
 
-                {/* Add new log */}
                 <form onSubmit={handleAddLog} className="flex gap-2">
                   <input 
                     type="text"
@@ -306,7 +306,6 @@ export default function OperatorTabletPage() {
               </div>
             </div>
 
-            {/* Run Actions */}
             <div className="bg-card border border-border rounded-2xl p-8 flex flex-col gap-4 justify-center">
               {currentMO.status !== "IN_PROGRESS" && !isRunning ? (
                 <motion.button
@@ -341,7 +340,7 @@ export default function OperatorTabletPage() {
           </div>
         </div>
 
-        {/* Right Column: Tabs (BOM | Product Info | QC Parameters) */}
+        {/* Right Column: Tabs */}
         <div className="col-span-1 lg:col-span-4 bg-card border border-border rounded-2xl flex flex-col overflow-hidden">
           {(() => {
             const product = products.find(p => p.id === currentMO.productId)
@@ -357,7 +356,6 @@ export default function OperatorTabletPage() {
 
             return (
               <>
-                {/* Tab bar */}
                 <div className="flex items-center border-b border-border/50 bg-muted/20 shrink-0">
                   {tabs.map(tab => (
                     <button
@@ -377,20 +375,22 @@ export default function OperatorTabletPage() {
                   ))}
                 </div>
 
-                {/* Tab content */}
                 <div className="flex-1 overflow-y-auto">
-                  {/* BOM Tab */}
                   {activeRightTab === "bom" && (
                     <div className="p-2">
                       {currentMO.bom?.lines.map((item, idx) => {
                         const mat = materials.find(m => m.id === item.materialId)
+                        const bomSumKg = currentMO.bom?.lines.reduce((s, r) => s + r.quantityPerUnit, 0) || 0
+                        const finalMass = currentMO.bom?.unit === 'kg' ? bomSumKg : (product?.finalMass || 100)
+                        const unitQty = currentMO.bom?.unit === 'pct' ? (item.quantityPerUnit / 100) * finalMass : item.quantityPerUnit
+
                         return (
                         <div key={idx} className="p-4 border-b border-border/30 last:border-0 flex flex-col gap-2 hover:bg-muted/10 transition-colors rounded-lg">
                           <div className="flex justify-between items-start">
                             <div className="flex flex-col">
                               <span className="font-medium text-foreground">{mat?.name || item.materialId}</span>
                             </div>
-                            <span className="font-mono text-foreground text-sm font-bold">{(item.quantityPerUnit * currentMO.targetQty).toFixed(2)} Kg</span>
+                            <span className="font-mono text-foreground text-sm font-bold">{(unitQty * currentMO.targetQty).toFixed(2)} Kg</span>
                           </div>
                           <div className="flex justify-between items-center mt-2">
                             <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
@@ -418,10 +418,8 @@ export default function OperatorTabletPage() {
                     </div>
                   )}
 
-                  {/* Product Info Tab */}
                   {activeRightTab === "product_info" && (
                     <div className="p-4 flex flex-col gap-5">
-                      {/* Product Image */}
                       {product?.imageUrl && (
                         <div className="w-full max-h-40 rounded-xl overflow-hidden border border-border/50 bg-muted/20">
                           <img 
@@ -432,13 +430,11 @@ export default function OperatorTabletPage() {
                         </div>
                       )}
 
-                      {/* Product name & SKU */}
                       <div>
                         <h4 className="font-display font-bold text-foreground text-base">{product?.name}</h4>
                         <span className="text-xs font-mono text-muted-foreground">{product?.sku}</span>
                       </div>
 
-                      {/* Next Machine */}
                       {nextMachine && !isGateStation && (
                         <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-xl">
                           <HardDrives className="w-5 h-5 text-primary shrink-0" weight="duotone" />
@@ -449,7 +445,6 @@ export default function OperatorTabletPage() {
                         </div>
                       )}
 
-                      {/* Notice & Indications */}
                       {product?.notice && (
                         <div className="flex flex-col gap-2">
                           <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{t("tablet_product_notice")}</span>
@@ -459,7 +454,6 @@ export default function OperatorTabletPage() {
                         </div>
                       )}
 
-                      {/* QC Section at gate stations */}
                       {isGateStation && (
                         <div className="border-t border-border/50 pt-4">
                           <button 
@@ -482,7 +476,6 @@ export default function OperatorTabletPage() {
                     </div>
                   )}
 
-                  {/* QC Parameters Tab (Gate Stations only) */}
                   {activeRightTab === "qc_params" && isGateStation && (
                     <div className="p-4 flex flex-col gap-3">
                       <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">{t("tablet_qc_section")}</h4>
@@ -504,7 +497,6 @@ export default function OperatorTabletPage() {
                         </div>
                       )}
 
-                      {/* QC action button */}
                       <div className="border-t border-border/50 pt-4 mt-2">
                         <button 
                           onClick={() => {
@@ -532,7 +524,6 @@ export default function OperatorTabletPage() {
 
       </div>
 
-      {/* Manual Refill Modal overlay - Liquid Glass concept implementation */}
       <AnimatePresence>
         {showRefillModal && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center pointer-events-none p-4">
@@ -551,9 +542,7 @@ export default function OperatorTabletPage() {
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
               className="relative w-full max-w-md pointer-events-auto"
             >
-              {/* Liquid Glass implementation */}
               <div className="rounded-3xl bg-card/60 backdrop-blur-2xl border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_20px_40px_rgba(0,0,0,0.2)] p-8 overflow-hidden">
-                {/* Noise filter overlay for premium feel */}
                 <div className="absolute inset-0 opacity-[0.03] mix-blend-overlay pointer-events-none" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E")' }}></div>
                 
                 <div className="relative z-10 flex flex-col gap-6 text-center">
@@ -590,7 +579,6 @@ export default function OperatorTabletPage() {
         )}
       </AnimatePresence>
 
-      {/* Scrap Logging Modal */}
       <AnimatePresence>
         {showScrapModal && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center pointer-events-none p-4">
@@ -662,7 +650,6 @@ export default function OperatorTabletPage() {
         )}
       </AnimatePresence>
 
-      {/* Quality Check Verification Gate Modal */}
       <AnimatePresence>
         {showQcModal && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center pointer-events-none p-4">

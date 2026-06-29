@@ -10,8 +10,14 @@ Academic front-end prototype (ENSPY Yaounde, 2025-2026). Multi-tenant manufactur
 
 ## Architecture
 
-- **No backend.** All data comes from `lib/mock-db.ts` — seed data + TypeScript types. Wrapped in `providers/MockFeedProductionProvider.tsx` (React Context). No API routes, no database.
-- **App Router** with two role-based shells: `manager/` and `operator/`, plus landing (`/`), login, and org-selector routes.
+- **No backend.** All data comes from `lib/mock-db.ts` — seed data. Types in `lib/types.ts`. Wrapped in `providers/MockFeedProductionProvider.tsx` (React Context). No API routes, no database.
+- **App Router** with three role-based shells: `owner/` (NEW), `manager/`, and `operator/`, plus landing (`/`), login, register, and org-selector routes.
+- **3 rôles** : `owner` (Chef d'entreprise), `manager` (Responsable d'agence), `operator` (Opérateur).
+- **Auth mock** : `lib/auth.ts` + `providers/AuthProvider.tsx` — vérifie email+password contre mock-db, session persistée dans localStorage.
+
+## Référence
+
+- **Plan complet** : `phases.md` — 8 phases, dépendances, fichiers concernés.
 
 ## Commands
 
@@ -35,89 +41,43 @@ No test, typecheck, or format scripts. No test framework installed.
 
 No test framework is installed. Do not attempt to run tests.
 
-## Test login
+## Comptes de test (Phase 1 — mock)
 
 ```
-Email:    david@alpha-feed.com
-Password: password
+Chef d'entreprise  : david@alpha-feed.com / password
+Resp. agence (multi): marie@alpha-feed.com / password123
+Resp. agence (mono) : paul@alpha-feed.com / password123
+Opérateur           : jean@alpha-feed.com / password123
+Opérateur           : fatima@alpha-feed.com / password123
 ```
 
 ## Other notes
 
 - `AGENTS.md` and `CLAUDE.md` are gitignored (`.gitignore` line 44-45). Agent instruction changes are not tracked by git.
 
-## Session Progress (June 19, 2026)
+## Session Progress (June 29, 2026)
 
-### DONE — Session 1
+### DONE — Phase 1 (Data Model & Seed Data)
 
-**i18n (EN/FR/ES)**
-- Created `lib/i18n/dictionary.ts` ~300 keys across EN/FR/ES
-- Moved `LanguageProvider` to `providers/LanguageProvider.tsx`, wrapped root layout
-- Translated all pages: landing, login, org-selector, manager (dashboard, insights, inventory, settings, profile), operator (select-station, tablet, profile), sidebar, drawer
-- Built-in language switcher on profile and landing header
+**Types**
+- Created `lib/types.ts` with all existing types extracted from `lib/mock-db.ts` + new entities (User, Organization, Agency, Employee, ThirdParty, Permission, CustomRole, Subscription, MachineAssignment, FinishedGoodsTransaction)
+- `lib/mock-db.ts` now imports from `./types` and re-exports everything for backward compat
 
-**Product image & notice**
-- Added `imageUrl`, `notice` fields to `Product` type in `lib/mock-db.ts`
-- Seed data has real Unsplash URLs + notice text per product
+**Seed data added**
+- 5 Users (1 owner, 2 managers, 2 operators) with real credentials
+- 1 Organization ("Alpha Feed & Manufacturing")
+- 3 Agencies (mixed fabrication/vente, fabrication only, vente only)
+- 5 Employees linking users to org/agencies with roles
+- 15 Permissions across 5 categories
+- 3 Default custom roles (manager, operator, +1 custom)
+- 4 ThirdParties (2 suppliers, 2 clients) with associated materials/products
+- 1 Active subscription
+- 2 MachineAssignments (operators linked to machines)
+- 3 FinishedGoodsTransactions
 
-**Settings product modal — third tab**
-- Added "Notice & Indications" tab with file upload (→ base64 data URL), live preview, "Remove Image" button, and free-form notice textarea
-- Product header (image + name + SKU) pinned above all 3 tabs
+**Permissions system**
+- Created `lib/permissions.ts` with ALL_PERMISSIONS, DEFAULT_ROLES, roleHasPermission()
 
-**Operator tablet — right panel tabs**
-- Tabbed: BOM | Product Info (always) + QC Parameters (gate stations only)
-- Product Info tab shows: image, name/SKU, next routing machine, notice/indications, QC action
-- QC Parameters tab lists all parameters with min/max/tolerance
-
-**Select-station order counts**
-- Each machine/gate card shows PENDING / IN PROGRESS / COMPLETED badge counts (hidden when 0)
-
-**Quality gate costs**
-- Added `opCostPerHour`, `operationRate` to `QualityGate` type + seed data costs
-- Added `timeInHours` to product quality gate assignments
-- QC form in settings now has opCost and throughput fields
-- QC costs included in routing cost calculations (settings save + dashboard estCost)
-
-**Timer countdown (not count-up)**
-- Reworked `useResilientChronometer` hook: accepts `totalSeconds` + `onComplete` callback
-- Counts down from routing step time × 3600 to 0
-- Auto-advances MO to next machine/gate when timer hits 0
-- Red text warning when < 60s remain
-- Persists to localStorage (survives refresh)
-
-**Operator profile — back button**
-- Added "Back to Select Station" link at top
-
-**Bottleneck test data**
-- Product "Flat Pack Shelf Kit" (SKU-BN-01) routing through `mac_saw_1` → `mac_cnc_1` → `mac_spray_1`
-- 4 bottleneck orders: 1 completed, 1 in-progress, 2 pending (3 compete for `mac_cnc_1`)
-- BOM uses existing materials
-
-**Material insufficiency checks (dashboard launch order)**
-- Validates BOM material quantities against inventory before creating MO
-- **Blocks** if insufficient (balance < required) — shows red per-material breakdown
-- **Warns** if quantity after deduction falls below threshold — shows amber breakdown
-- "Continue Anyway" button for warnings (not for errors)
-- Deducts materials via `recordInventoryTransaction(CONSUMPTION)` on order creation
-
-### LEFT TO DO — Next Session
-
-1. **FIFO bottleneck management**: When multiple PENDING orders target the same machine, display queue and auto-assign next in FIFO order after current MO completes. Currently the tablet selects the first match via `find()` — needs explicit queue display + FIFO dispatch.
-
-2. **Material consumption in operator tablet**: Deduct BOM materials in real-time when order starts (not just at launch). Show running material balance during execution. Flag imminent shortages.
-
-3. **Order history / traceability**: Log completed MOs with timestamps, machine routing path, QC results, scrap logged. Display in manager dashboard.
-
-4. **Bottleneck visualization**: Highlight machines with the most queued orders in select-station cards (e.g. "3 PENDING" badge in red/orange when count > 1). Show wait-time estimate.
-
-5. **Notifications system**: Global notification bell in shell headers for material warnings, order completions, machine maintenance.
-
-6. **Polish & edge cases**:
-   - Empty states for operator tablet when no MO at station after countdown auto-advance
-   - Handle case where totalSeconds = 0 (no routing step time defined) — show infinite timer instead of countdown
-   - Handle duplicate MO dispatch to same machine (prevent double-booking)
-
-7. **Possible refinements**:
-   - Gate `timeInHours` defaults to 0.25h if not set — might need explicit required field
-   - The chronometer `setState` in `useEffect` triggers React 19 lint warning but is functionally correct
-   - `any` types in settings page and tablet (pre-existing, not introduced by us)
+**Existing data preserved**
+- All materials, products, BOMs, machines, quality gates, production lines, orders, ledger untouched
+- Added `agencyId`, `orgId` fields with defaults for backward compat

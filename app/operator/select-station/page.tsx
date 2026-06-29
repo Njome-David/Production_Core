@@ -1,16 +1,34 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { Factory, Cylinder, Engine, Package, GearSix, CheckSquareOffset } from "@phosphor-icons/react"
+import { Factory, Cylinder, Engine, Package, GearSix, CheckSquareOffset, WarningCircle } from "@phosphor-icons/react"
+import { useAuth } from "@/providers/AuthProvider"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
 import { useLanguage } from "@/providers/LanguageProvider"
 
 export default function SelectStationPage() {
   const router = useRouter()
+  const { user } = useAuth()
   const { t } = useLanguage()
-  const { setActiveSession, machines, qualityGates, activeMOs, products } = useMockData()
+  const { setActiveSession, machines, qualityGates, activeMOs, products, machineAssignments } = useMockData()
+
+  // Filter machines by assignment
+  const assignedMachineIds = useMemo(() => {
+    if (!user) return new Set<string>()
+    return new Set(
+      machineAssignments
+        .filter(a => a.operatorId === user.id)
+        .map(a => a.machineId)
+    )
+  }, [machineAssignments, user])
+
+  const assignedMachines = useMemo(() => {
+    return machines.filter(m => assignedMachineIds.has(m.id))
+  }, [machines, assignedMachineIds])
+
+  const hasStations = assignedMachines.length > 0 || qualityGates.length > 0
 
   const [showFifoModal, setShowFifoModal] = useState(false)
   const [fifoStationId, setFifoStationId] = useState<string | null>(null)
@@ -55,11 +73,23 @@ export default function SelectStationPage() {
           <p className="text-muted-foreground">{t("station_desc")}</p>
         </motion.div>
 
-        {/* Production Machines */}
+        {!hasStations && (
+          <motion.div variants={itemVariants} className="text-center py-16">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-muted/50 mb-6">
+              <WarningCircle weight="duotone" className="w-8 h-8 text-muted-foreground" />
+            </div>
+            <h2 className="text-xl font-display font-bold text-foreground mb-2">{t("station_none_title")}</h2>
+            <p className="text-muted-foreground text-sm max-w-sm mx-auto">{t("station_none_desc")}</p>
+          </motion.div>
+        )}
+
+        {hasStations && (
+          <>
+        {assignedMachines.length > 0 && (
         <motion.div variants={itemVariants} className="mb-8">
           <h2 className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest mb-4 px-1">{t("station_section_machines")}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {machines.map((station) => (
+            {assignedMachines.map((station) => (
               <motion.div variants={itemVariants} key={station.id}>
                 {(() => {
                   const stationMOs = activeMOs.filter(mo => mo.machineId === station.id && mo.status !== "COMPLETED" && mo.status !== "FINAL")
@@ -108,6 +138,7 @@ export default function SelectStationPage() {
             ))}
           </div>
         </motion.div>
+        )}
 
         {/* Quality Gates */}
         {qualityGates.length > 0 && (
@@ -156,6 +187,8 @@ export default function SelectStationPage() {
             </div>
           </motion.div>
         )}
+          </>
+        )}
       </motion.div>
 
       {/* FIFO Modal */}
@@ -168,9 +201,9 @@ export default function SelectStationPage() {
             className="relative w-full max-w-lg bg-card border border-border rounded-2xl shadow-xl overflow-hidden z-10"
           >
             <div className="p-6 border-b border-border/50">
-              <h3 className="text-xl font-display font-bold text-foreground">File d'attente (FIFO)</h3>
+              <h3 className="text-xl font-display font-bold text-foreground">File d&apos;attente (FIFO)</h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Ordres en attente pour {fifoStationType === "machine" ? machines.find(m => m.id === fifoStationId)?.name : qualityGates.find(g => g.id === fifoStationId)?.name}
+                {t("operator_select_station_pending_orders_for")} {fifoStationType === "machine" ? machines.find(m => m.id === fifoStationId)?.name : qualityGates.find(g => g.id === fifoStationId)?.name}
               </p>
             </div>
             <div className="p-0 overflow-y-auto max-h-[60vh]">
@@ -188,7 +221,7 @@ export default function SelectStationPage() {
                 if (pendingMOs.length === 0) {
                   return (
                     <div className="p-8 text-center text-muted-foreground text-sm">
-                      Aucun ordre en attente.
+                      {t("operator_select_station_no_pending_orders")}
                     </div>
                   )
                 }

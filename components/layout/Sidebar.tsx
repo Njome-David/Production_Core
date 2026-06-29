@@ -6,12 +6,12 @@ import { usePathname } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Lock, LockOpen, UserCircle, ArrowsLeftRight } from "@phosphor-icons/react"
 import { useLanguage } from "@/providers/LanguageProvider"
-import { NotificationBell } from "./NotificationBell"
 
 export interface NavItem {
   href: string
   label: string
   icon: React.ElementType
+  badge?: number
 }
 
 interface SidebarProps {
@@ -55,14 +55,13 @@ export function Sidebar({
 
   const effectiveWidth = isCollapsed && !isHovered ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED
 
-    return (
+  return (
     <>
       <motion.aside
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         animate={{ width: effectiveWidth }}
         transition={{ duration: 0.2, ease: "easeInOut" }}
-        // CORRECTION: Retrait de 'overflow-hidden' pour que la cloche soit visible
         className="fixed left-0 top-0 h-[100dvh] z-40 flex flex-col bg-card border-r border-border/50 shadow-sm"
       >
         {/* Org identity */}
@@ -100,19 +99,29 @@ export function Sidebar({
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
-                <link.icon
-                  weight={isActive ? "fill" : "regular"}
-                  className="w-5 h-5 shrink-0"
-                />
+                <div className="relative shrink-0">
+                  <link.icon
+                    weight={isActive ? "fill" : "regular"}
+                    className="w-5 h-5"
+                  />
+                  {link.badge && link.badge > 0 && effectiveWidth <= SIDEBAR_COLLAPSED + 20 && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500 border-2 border-card" />
+                  )}
+                </div>
                 <AnimatePresence initial={false}>
                   {effectiveWidth > SIDEBAR_COLLAPSED + 20 && (
                     <motion.span
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -10 }}
-                      className="text-sm whitespace-nowrap overflow-hidden text-ellipsis"
+                      className="text-sm whitespace-nowrap overflow-hidden text-ellipsis flex items-center gap-2"
                     >
                       {link.label}
+                      {link.badge && link.badge > 0 && (
+                        <span className="w-4 h-4 rounded-full bg-red-500 text-[9px] font-bold text-white flex items-center justify-center shrink-0">
+                          {link.badge > 9 ? "9+" : link.badge}
+                        </span>
+                      )}
                     </motion.span>
                   )}
                 </AnimatePresence>
@@ -174,7 +183,6 @@ export function Sidebar({
           {effectiveWidth > SIDEBAR_COLLAPSED + 20 && (
             <div className="flex items-center gap-1 px-1">
               <div className="flex-1">{themeToggle}</div>
-              <NotificationBell isCollapsed={false} />
               <button
                 onClick={toggleCollapse}
                 className="flex items-center gap-1.5 p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors text-xs font-medium"
@@ -190,9 +198,7 @@ export function Sidebar({
           
           {/* Show just the notification bell when collapsed */}
           {effectiveWidth <= SIDEBAR_COLLAPSED + 20 && (
-            <div className="flex justify-center mt-2">
-              <NotificationBell isCollapsed={true} />
-            </div>
+            <div className="flex justify-center mt-2" />
           )}
         </div>
       </motion.aside>

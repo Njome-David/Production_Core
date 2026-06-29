@@ -5,6 +5,7 @@ import { motion } from "framer-motion"
 import { X, Play, Clock, CheckCircle, Cube, Drop, Hash, ArrowsLeftRight } from "@phosphor-icons/react"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
 import { useLanguage } from "@/providers/LanguageProvider"
+import { computeSellingPrice } from "@/lib/pricing"
 
 interface DrawerProps {
   moId: string
@@ -12,15 +13,13 @@ interface DrawerProps {
 }
 
 export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
-  const { activeMOs, setMOStatus, materials, activeUnit, products, machines, lines, boms, qualityGates, additionalCosts, recordInventoryTransaction } = useMockData()
+  const { activeMOs, setMOStatus, updateMO, materials, activeUnit, products, machines, lines, boms, qualityGates, additionalCosts, recordInventoryTransaction } = useMockData()
   const mo = activeMOs.find(m => m.id === moId)
   const { t } = useLanguage()
 
   const [showFinalizeForm, setShowFinalizeForm] = useState(false)
   const [actualCosts, setActualCosts] = useState<Record<string, number>>({})
 
-  
-  // Close on Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose()
@@ -31,72 +30,63 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
 
   if (!mo) return null
 
-  // Financial calculations
   const product = products.find(p => p.id === mo.productId)
 
-  // Materials cost
   const bom = boms.find(b => b.productId === mo.productId)
   const materialsCost = bom?.lines.reduce((acc, line) => {
     const mat = materials.find(m => m.id === line.materialId)
-    const cost = line.quantityPerUnit * mo.targetQty * (mat?.costAvg || 250) // default cost 250 FCFA/unit
-    return acc + cost
+    const bomSumKg = bom.lines.reduce((s, r) => s + r.quantityPerUnit, 0)
+    const finalMass = bom.unit === 'kg' ? bomSumKg : (product?.finalMass || 100)
+    const qty = bom.unit === 'pct' ? (line.quantityPerUnit / 100) * finalMass : line.quantityPerUnit
+    return acc + (qty * mo.targetQty * (mat?.costAvg || 250))
   }, 0) || 0
 
-  // Machine maintenance cost
-  const productionLine = lines.find(l => l.id === mo.lineId)
-  const machineMaintenanceCost = productionLine?.machineIds.reduce((acc, machineId) => {
-    const machine = machines.find(m => m.id === machineId)
-    if (!machine) return acc
-    const hours = mo.targetQty / (machine.operationRate || 10)
-    const cost = hours * (machine.maintenanceCostPerHour || 1500)
-    return acc + cost
-  }, 0) || 0
+  let opCost = 0
+  if (product?.routing) {
+    product.routing.forEach(row => {
+      const mac = machines.find(m => m.id === row.machineId)
+      const macOpCost = mac?.opCostPerHour || 0
+      opCost += (row.usagePercentage / 100) * macOpCost * (row.timeInHours || 1)
+      
+      if (product.qualityGates) {
+         const gateEntry = product.qualityGates.find(g => g.sequenceAfter === row.sequence)
+         if (gateEntry) {
+           const gate = qualityGates.find(q => q.id === gateEntry.gateId)
+           const gateHours = gateEntry.timeInHours || 0.25
+           opCost += (gate?.opCostPerHour || 0) * gateHours
+         }
+      }
+    })
+  }
+  const totalOpCost = opCost * mo.targetQty
 
-  // QC Cost
-  const qcCost = product?.qualityGates?.reduce((acc, gateEntry) => {
-    const gate = qualityGates.find(g => g.id === gateEntry.gateId)
-    const hours = gateEntry.timeInHours || 0.25
-    // CORRECTION: Multiplication par mo.targetQty
-    return acc + (gate?.opCostPerHour || 0) * hours * mo.targetQty
-  }, 0) || 0
+  const provisionalAdditionalCost = product?.additionalCosts?.reduce((acc, cost) => acc + cost.provisionalValue, 0) || 0
+  const totalProvisionalAdditionalCost = provisionalAdditionalCost * mo.targetQty
 
-  // Additional Costs
-  // CORRECTION: Multiplication par mo.targetQty
-  const provisionalAdditionalCost = product?.additionalCosts?.reduce((acc, cost) => {
-    return acc + cost.provisionalValue * mo.targetQty
-  }, 0) || 0
-
-  const fixedLaunchCost = 5000 // 5000 FCFA
-  const estimatedCost = fixedLaunchCost + materialsCost + machineMaintenanceCost + qcCost + provisionalAdditionalCost
+  const fixedLaunchCost = 5000 
   
-  const targetMargin = product?.targetMargin || 20
-  const suggestedSellingPrice = estimatedCost * (1 + targetMargin / 100)
-  
-  const estimatedRevenue = mo.targetQty * suggestedSellingPrice
+  let actualAddlCost = totalProvisionalAdditionalCost
+  if (mo.status === 'FINAL' && mo.actualAdditionalCosts && Object.keys(mo.actualAdditionalCosts).length > 0) {
+     actualAddlCost = Object.values(mo.actualAdditionalCosts).reduce((a, b) => a + b, 0)
+  }
+
+  const estimatedCost = fixedLaunchCost + materialsCost + totalOpCost + actualAddlCost
+  const estimatedRevenue = product ? mo.targetQty * computeSellingPrice(product, boms, materials, machines, qualityGates) : 0
   
   const grossMargin = estimatedRevenue - estimatedCost
   const marginPercentage = estimatedRevenue > 0 ? (grossMargin / estimatedRevenue) * 100 : 0
 
-  const handleRelease = () => {
-    // Optimistically update status to 'In Progress' for mock purposes
-    setMOStatus(mo.id, "IN_PROGRESS")
-  }
-
   const handleFinalize = (e: React.FormEvent) => {
     e.preventDefault()
-    // Find the MO in activeMOs (we already have it as 'mo')
-    // We would update it with actualAdditionalCosts
-    mo.actualAdditionalCosts = actualCosts
-    setMOStatus(mo.id, "FINAL")
+    updateMO(mo.id, { actualAdditionalCosts: actualCosts, status: "FINAL" })
     setShowFinalizeForm(false)
   }
 
-  // Pre-fill actual costs with provisional values when opening the form
   const handleOpenFinalize = () => {
     const initial: Record<string, number> = {}
     if (product?.additionalCosts) {
       product.additionalCosts.forEach(ac => {
-        initial[ac.costId] = ac.provisionalValue
+        initial[ac.costId] = ac.provisionalValue * mo.targetQty
       })
     }
     setActualCosts(initial)
@@ -105,7 +95,6 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
 
   return (
     <div className="fixed inset-0 z-[100] flex justify-end pointer-events-none">
-      {/* Backdrop */}
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -115,7 +104,6 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
         onClick={onClose}
       />
 
-      {/* Drawer */}
       <motion.div 
         initial={{ x: "100%" }}
         animate={{ x: 0 }}
@@ -123,7 +111,6 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
         className="relative z-10 w-full max-w-2xl h-[100dvh] bg-card border-l border-border shadow-2xl flex flex-col pointer-events-auto"
       >
-        {/* Header */}
         <div className="flex items-start justify-between p-6 border-b border-border/50 bg-background/50">
           <div>
             <div className="flex items-center gap-3 mb-1">
@@ -145,9 +132,7 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
           </button>
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-8">
-          {/* Production Specs */}
           <section className="flex flex-col gap-4">
             <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">{t("drawer_specs")}</h3>
             <div className="grid grid-cols-2 gap-4">
@@ -182,7 +167,6 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
             </div>
           </section>
 
-          {/* Actual Costs Form for FINAL state */}
           {showFinalizeForm && (
             <section className="flex flex-col gap-4 p-5 border border-primary/30 bg-primary/5 rounded-2xl">
               <div className="flex justify-between items-center">
@@ -224,7 +208,6 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
             </section>
           )}
 
-          {/* Estimated Financials */}
           <section className="flex flex-col gap-4">
             <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">{t("drawer_financials")}</h3>
             <div className="grid grid-cols-3 gap-4">
@@ -273,7 +256,6 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
             )}
           </section>
 
-          {/* Bill of Materials */}
           <section className="flex flex-col gap-4">
             <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider flex items-center justify-between">
               <span>{t("drawer_bom")}</span>
@@ -290,6 +272,10 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
               <div className="flex flex-col divide-y divide-border/50">
                 {mo.bom?.lines.map((item, idx) => {
                   const mat = materials.find(m => m.id === item.materialId)
+                  const bomSumKg = mo.bom?.lines.reduce((s, r) => s + r.quantityPerUnit, 0) || 0
+                  const finalMass = mo.bom?.unit === 'kg' ? bomSumKg : (product?.finalMass || 100)
+                  const unitQty = mo.bom?.unit === 'pct' ? (item.quantityPerUnit / 100) * finalMass : item.quantityPerUnit
+                  
                   return (
                   <div key={idx} className="grid grid-cols-12 gap-2 p-3 text-sm items-center bg-card hover:bg-muted/20 transition-colors">
                     <div className="col-span-6 flex items-center gap-2 font-mono text-xs font-bold text-foreground">
@@ -297,10 +283,9 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
                       {mat?.name || item.materialId}
                     </div>
                     <div className="col-span-3 text-right font-mono text-muted-foreground">
-                      {(item.quantityPerUnit * mo.targetQty).toFixed(2)}
+                      {(unitQty * mo.targetQty).toFixed(2)}
                     </div>
                     <div className="col-span-3 text-right text-muted-foreground flex items-center justify-end gap-1 font-mono">
-                      {/* For mockup: show a generic stock level, or green check if sufficient */}
                       <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1"></div>
                       {t("drawer_stock_available")}
                     </div>
@@ -311,7 +296,6 @@ export function ManufacturingOrderDrawer({ moId, onClose }: DrawerProps) {
           </section>
         </div>
 
-        {/* Footer Actions */}
         <div className="p-6 border-t border-border/50 bg-background/50 flex justify-end gap-3">
           <button 
             onClick={onClose}

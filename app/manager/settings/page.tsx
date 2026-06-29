@@ -1491,7 +1491,7 @@ export default function SettingsPage() {
                     <label className="text-xs font-mono font-bold text-muted-foreground uppercase">{t("settings_label_select_gate")}</label>
                     <select
                       id="qualityGateSelect"
-                      className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary transition-all text-foreground appearance-none text-sm font-medium"
+                      className="w-full px-4 py-3 bg-background border border-border rounded-xl  text-foregroundfocus:outline-none focus:ring-1 focus:ring-primary transition-all text-foreground appearance-none text-sm font-medium"
                       defaultValue=""
                     >
                       <option value="" disabled>{t("settings_placeholder_choose_gate")}</option>
@@ -1508,7 +1508,7 @@ export default function SettingsPage() {
                       step="0.05"
                       min="0"
                       defaultValue={0.25}
-                      className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary transition-all text-foreground text-sm font-mono"
+                      className="w-full px-4 py-3 bg-background border border-border rounded-xl  text-foregroundfocus:outline-none focus:ring-1 focus:ring-primary transition-all text-foreground text-sm font-mono"
                     />
                   </div>
                 </div>

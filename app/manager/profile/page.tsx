@@ -2,21 +2,21 @@
 
 import React from "react"
 import { motion } from "framer-motion"
-import { useMockData } from "@/providers/MockFeedProductionProvider"
+import { useAuth } from "@/providers/AuthProvider"
 import { useTheme } from "next-themes"
 import { useLanguage } from "@/providers/LanguageProvider"
 import { UserCircle, Sun, Moon, Globe, CreditCard, Bell, Shield } from "@phosphor-icons/react"
 
 export default function ProfilePage() {
-  const { activeSession } = useMockData()
+  const { user, activeOrg, logout } = useAuth()
   const { theme, setTheme } = useTheme()
   const { t, language, setLanguage } = useLanguage()
 
   const userInfo = {
-    name: activeSession?.user_id === "usr_dvd_99" ? "David Vance" : "Operator User",
-    email: activeSession?.user_id === "usr_dvd_99" ? "david@alpha-feed.com" : "operator@beta-mills.com",
-    role: activeSession?.role || "Manager",
-    org: activeSession?.org_id || "org_alpha_feed",
+    name: user?.name || t("manager_profile_default_name"),
+    email: user?.email || "",
+    role: activeOrg?.role === "manager" ? t("manager_profile_role_manager") : "Manager",
+    org: activeOrg?.org.name || "",
   }
 
   return (
@@ -25,9 +25,18 @@ export default function ProfilePage() {
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ ease: [0.32, 0.72, 0, 1] as const, duration: 0.6 }}
+        className="flex items-center justify-between"
       >
-        <h1 className="text-4xl font-display text-foreground font-bold tracking-tight mb-2">{t("profile_title")}</h1>
-        <p className="text-muted-foreground text-lg">{t("profile_manager_desc")}</p>
+        <div>
+          <h1 className="text-4xl font-display text-foreground font-bold tracking-tight mb-2">{t("profile_title")}</h1>
+          <p className="text-muted-foreground text-lg">{t("profile_manager_desc")}</p>
+        </div>
+        <button
+          onClick={logout}
+          className="px-4 py-2 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-lg font-medium text-sm transition-colors h-fit"
+        >
+          Se déconnecter
+        </button>
       </motion.div>
 
       {/* User Info Card */}
@@ -115,50 +124,11 @@ export default function ProfilePage() {
           <span className="text-[10px] text-muted-foreground font-mono italic">{t("profile_language_note")}</span>
         </motion.div>
 
-        {/* Subscription Plan */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ ease: [0.32, 0.72, 0, 1] as const, duration: 0.6, delay: 0.2 }}
-          className="bg-card border border-border/50 rounded-2xl p-6 flex flex-col gap-4 md:col-span-2"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-              <CreditCard className="w-5 h-5 text-emerald-600" weight="duotone" />
-            </div>
-            <h3 className="font-display font-bold text-foreground text-lg">{t("profile_section_plan")}</h3>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-2">
-            {/* Current Plan */}
-            <div className="md:col-span-1 p-6 rounded-xl bg-primary/5 border border-primary/20 flex flex-col gap-3">
-              <span className="text-xs font-mono font-bold text-primary uppercase tracking-widest">{t("profile_plan_current")}</span>
-              <span className="text-2xl font-display font-bold text-foreground">{t("profile_plan")}</span>
-              <span className="text-lg font-mono text-foreground">{t("profile_plan_price")}</span>
-              <span className="text-xs text-muted-foreground">{t("profile_plan_monthly")}</span>
-            </div>
-
-            {/* Features */}
-            <div className="md:col-span-2 flex flex-col gap-2 justify-center">
-              <span className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest mb-1">{t("profile_plan_included")}</span>
-              {[t("profile_plan_feature_lines"), t("profile_plan_feature_users"), t("profile_plan_feature_analytics"), t("profile_plan_feature_support")].map((feature, idx) => (
-                <div key={idx} className="flex items-center gap-3 text-sm text-foreground">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                  {feature}
-                </div>
-              ))}
-              <button className="self-start mt-3 px-5 py-2.5 bg-primary text-primary-foreground font-bold rounded-xl text-sm hover:bg-primary/90 transition-colors">
-                {t("profile_btn_change_plan")}
-              </button>
-            </div>
-          </div>
-        </motion.div>
-
         {/* Notifications */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ ease: [0.32, 0.72, 0, 1] as const, duration: 0.6, delay: 0.25 }}
+          transition={{ ease: [0.32, 0.72, 0, 1] as const, duration: 0.6, delay: 0.2 }}
           className="bg-card border border-border/50 rounded-2xl p-6 flex flex-col gap-4"
         >
           <div className="flex items-center gap-3">
@@ -188,7 +158,7 @@ export default function ProfilePage() {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ ease: [0.32, 0.72, 0, 1] as const, duration: 0.6, delay: 0.3 }}
+          transition={{ ease: [0.32, 0.72, 0, 1] as const, duration: 0.6, delay: 0.25 }}
           className="bg-card border border-border/50 rounded-2xl p-6 flex flex-col gap-4"
         >
           <div className="flex items-center gap-3">

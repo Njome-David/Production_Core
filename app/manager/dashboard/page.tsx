@@ -7,6 +7,7 @@ import { useLanguage } from "@/providers/LanguageProvider"
 import { Play, Pause, CheckCircle, Clock, PresentationChart, CaretRight, Plus, X, Factory, Warning } from "@phosphor-icons/react"
 import { ManufacturingOrderDrawer } from "@/components/manager/ManufacturingOrderDrawer"
 import { ManufacturingOrder } from "@/lib/mock-db"
+import { computeSellingPrice } from "@/lib/pricing"
 
 export default function ManagerDashboard() {
   const { activeMOs, products, lines, boms, materials, machines, qualityGates, addOrder, recordInventoryTransaction } = useMockData()
@@ -16,7 +17,6 @@ export default function ManagerDashboard() {
   const [filterProductId, setFilterProductId] = useState<string>("ALL")
   const [filterState, setFilterState] = useState<string>("ALL")
 
-  
   const [showNewMoModal, setShowNewMoModal] = useState(false)
   const [newMoProductId, setNewMoProductId] = useState("")
   const [newMoLineId, setNewMoLineId] = useState("")
@@ -25,48 +25,28 @@ export default function ManagerDashboard() {
   const [materialWarnings, setMaterialWarnings] = useState<{ type: 'error' | 'warn'; materialName: string; required: number; available: number }[]>([])
   const [showMaterialWarnings, setShowMaterialWarnings] = useState(false)
 
-  // Display mode toggle: "units" shows # of batches, "qty" shows totalQty×finalMass in measureUnit
   const [displayMode, setDisplayMode] = useState<"units" | "qty">("units")
 
   const selectedProduct = products.find(p => p.id === newMoProductId)
   const productWeight = selectedProduct?.finalMass || 1
   const productUnit = selectedProduct?.measureUnit || "units"
 
-  // Per-product mass calculation: pct mode uses finalMass, kg mode sums BOM
-  const getProductMass = (productId: string): number => {
-    const bom = boms.find(b => b.productId === productId)
-    if (!bom) return 1
-    if (bom.unit === 'pct') {
-      const prod = products.find(p => p.id === productId)
-      return prod?.finalMass || 1
-    }
-    // kg mode: sum of all BOM line quantities
-    const sum = bom.lines.reduce((acc, line) => acc + line.quantityPerUnit, 0)
-    return sum > 0 ? sum : 1
-  }
-
-  // Per-row unit helper: returns the product's measureUnit
   const getMOUnit = (productId: string): string => {
     const prod = products.find(p => p.id === productId)
     return prod?.measureUnit || 'kg'
   }
 
-  // Compute volume display value depending on displayMode
-  // units mode: just targetQty (number of batches / units produced)
-  // qty mode: targetQty × product.finalMass in the product's measureUnit
   const getMODisplayQty = (targetQty: number, productId: string): { value: string; unit: string } => {
     const prod = products.find(p => p.id === productId)
     if (displayMode === 'units') {
       return { value: targetQty.toLocaleString(), unit: 'units' }
     }
-    // qty mode
     const finalMass = prod?.finalMass || 1
     const total = targetQty * finalMass
     const unit = prod?.measureUnit || 'kg'
     return { value: total.toLocaleString(undefined, { maximumFractionDigits: 2 }), unit }
   }
 
-  // Filter MOs
   const filteredMOs = React.useMemo(() => {
     return activeMOs.filter(mo => {
       if (filterProductId !== "ALL" && mo.productId !== filterProductId) return false
@@ -75,58 +55,64 @@ export default function ManagerDashboard() {
     })
   }, [activeMOs, filterProductId, filterState])
 
-  // Target qty in modal is always in product's native unit
   const targetQtyInBatches = newMoTargetQtyInput;
   
-  // Calculate estimates
   const estRevenue = React.useMemo(() => {
     if (!newMoProductId || targetQtyInBatches <= 0) return 0
     const product = products.find(p => p.id === newMoProductId)
-    return product ? product.price * targetQtyInBatches : 0
-  }, [newMoProductId, targetQtyInBatches, products])
+    return product ? computeSellingPrice(product, boms, materials, machines, qualityGates) * targetQtyInBatches : 0
+  }, [newMoProductId, targetQtyInBatches, products, boms, materials, machines, qualityGates])
 
   const estCost = React.useMemo(() => {
     if (!newMoProductId || !newMoLineId || targetQtyInBatches <= 0) return 0
-    let cost = 5000 // Fixed launching cost
     
-    // Material Cost
+    let unitCost = 0
+    const product = products.find(p => p.id === newMoProductId)
     const bom = boms.find(b => b.productId === newMoProductId)
-    if (bom) {
-      for (const line of bom.lines) {
-        const mat = materials.find(m => m.id === line.materialId)
-        if (mat) {
-          cost += line.quantityPerUnit * targetQtyInBatches * mat.costAvg
-        }
+    
+    if (product) {
+      let materialsCost = 0
+      if (bom) {
+        const bomSumKg = bom.lines.reduce((acc, row) => acc + row.quantityPerUnit, 0)
+        const finalMass = bom.unit === 'kg' ? bomSumKg : (product.finalMass || 100)
+        bom.lines.forEach(row => {
+          const mat = materials.find(m => m.id === row.materialId)
+          if (mat) {
+            const qty = bom.unit === 'pct' ? (row.quantityPerUnit / 100) * finalMass : row.quantityPerUnit
+            materialsCost += qty * mat.costAvg
+          }
+        })
       }
+      
+      let opCost = 0
+      if (product.routing) {
+        product.routing.forEach(row => {
+          const mac = machines.find(m => m.id === row.machineId)
+          const macOpCost = mac?.opCostPerHour || 0
+          opCost += (row.usagePercentage / 100) * macOpCost * (row.timeInHours || 1)
+          
+          if (product.qualityGates) {
+             const gateEntry = product.qualityGates.find(g => g.sequenceAfter === row.sequence)
+             if (gateEntry) {
+               const gate = qualityGates.find(q => q.id === gateEntry.gateId)
+               const gateHours = gateEntry.timeInHours || 0.25
+               opCost += (gate?.opCostPerHour || 0) * gateHours
+             }
+          }
+        })
+      }
+      
+      let addlCost = 0
+      if (product.additionalCosts) {
+         product.additionalCosts.forEach(row => {
+            addlCost += row.provisionalValue
+         })
+      }
+      
+      unitCost = materialsCost + opCost + addlCost
     }
 
-    // Machine Cost + QC Gate Cost
-    const product = products.find(p => p.id === newMoProductId)
-    const line = lines.find(l => l.id === newMoLineId)
-    if (line && product) {
-      for (const mId of line.machineIds) {
-        const machine = machines.find(m => m.id === mId)
-        if (machine && machine.operationRate > 0) {
-          cost += (targetQtyInBatches / machine.operationRate) * machine.maintenanceCostPerHour
-        }
-      }
-      // QC Gate costs
-      if (product.qualityGates) {
-        for (const gateEntry of product.qualityGates) {
-          const gate = qualityGates.find(g => g.id === gateEntry.gateId)
-          const gateHours = gateEntry.timeInHours || 0.25
-          // CORRECTION: Multiplication par targetQtyInBatches
-          cost += (gate?.opCostPerHour || 0) * gateHours * targetQtyInBatches
-        }
-      }
-      // CORRECTION: Ajout des coûts supplémentaires par unité
-      if (product.additionalCosts) {
-        for (const costEntry of product.additionalCosts) {
-          cost += costEntry.provisionalValue * targetQtyInBatches
-        }
-      }
-    }
-    return cost
+    return 5000 + (unitCost * targetQtyInBatches)
   }, [newMoProductId, newMoLineId, targetQtyInBatches, boms, materials, lines, machines, products, qualityGates])
 
   const containerVariants = {
@@ -149,12 +135,17 @@ export default function ManagerDashboard() {
     if (!bom) return []
 
     const issues: { type: 'error' | 'warn'; materialName: string; required: number; available: number }[] = []
+    
+    const product = products.find(p => p.id === productId)
+    const bomSumKg = bom.lines.reduce((acc, row) => acc + row.quantityPerUnit, 0)
+    const finalMass = bom.unit === 'kg' ? bomSumKg : (product?.finalMass || 100)
 
     for (const line of bom.lines) {
       const mat = materials.find(m => m.id === line.materialId)
       if (!mat) continue
 
-      const requiredQty = line.quantityPerUnit * qty
+      const unitQty = bom.unit === 'pct' ? (line.quantityPerUnit / 100) * finalMass : line.quantityPerUnit
+      const requiredQty = unitQty * qty
       const available = mat.balanceVolume
       const remaining = available - requiredQty
 
@@ -184,30 +175,34 @@ export default function ManagerDashboard() {
     if (issues.length > 0) {
       setMaterialWarnings(issues)
       setShowMaterialWarnings(true)
-      // Allow continuing with warnings
       return
     }
 
     setMaterialWarnings([])
     setShowMaterialWarnings(false)
 
-    // Deduct materials
     const bom = boms.find(b => b.productId === newMoProductId)
+    const product = products.find(p => p.id === newMoProductId)
+    const bomSumKg = bom?.lines.reduce((acc, row) => acc + row.quantityPerUnit, 0) || 0
+    const finalMass = bom?.unit === 'kg' ? bomSumKg : (product?.finalMass || 100)
+
     if (bom) {
       for (const line of bom.lines) {
         const mat = materials.find(m => m.id === line.materialId)
         if (mat) {
+          const unitQty = bom.unit === 'pct' ? (line.quantityPerUnit / 100) * finalMass : line.quantityPerUnit
           recordInventoryTransaction({
             materialId: line.materialId,
             type: 'CONSUMPTION',
-            quantity: line.quantityPerUnit * targetQtyInBatches,
+            quantity: unitQty * targetQtyInBatches,
             unitCost: mat.costAvg,
-            totalValue: line.quantityPerUnit * targetQtyInBatches * mat.costAvg
+            totalValue: unitQty * targetQtyInBatches * mat.costAvg
           })
         }
       }
     }
 
+    const createdLine = lines.find(l => l.id === newMoLineId)
     const newMo: ManufacturingOrder = {
       id: `mo_${Date.now()}`,
       productId: newMoProductId,
@@ -215,6 +210,7 @@ export default function ManagerDashboard() {
       status: "PENDING",
       targetQty: targetQtyInBatches,
       qcStatus: "UNDONE",
+      originAgencyId: createdLine?.agencyId || "agence_main",
       ...(newMoScheduledDate && { programmedDate: newMoScheduledDate })
     }
     
@@ -230,24 +226,30 @@ export default function ManagerDashboard() {
     if (!newMoProductId || !newMoLineId || targetQtyInBatches <= 0) return
 
     const errors = materialWarnings.filter(i => i.type === 'error')
-    if (errors.length > 0) return // still can't proceed with errors
+    if (errors.length > 0) return 
 
     const bom = boms.find(b => b.productId === newMoProductId)
+    const product = products.find(p => p.id === newMoProductId)
+    const bomSumKg = bom?.lines.reduce((acc, row) => acc + row.quantityPerUnit, 0) || 0
+    const finalMass = bom?.unit === 'kg' ? bomSumKg : (product?.finalMass || 100)
+
     if (bom) {
       for (const line of bom.lines) {
         const mat = materials.find(m => m.id === line.materialId)
         if (mat) {
+          const unitQty = bom.unit === 'pct' ? (line.quantityPerUnit / 100) * finalMass : line.quantityPerUnit
           recordInventoryTransaction({
             materialId: line.materialId,
             type: 'CONSUMPTION',
-            quantity: line.quantityPerUnit * targetQtyInBatches,
+            quantity: unitQty * targetQtyInBatches,
             unitCost: mat.costAvg,
-            totalValue: line.quantityPerUnit * targetQtyInBatches * mat.costAvg
+            totalValue: unitQty * targetQtyInBatches * mat.costAvg
           })
         }
       }
     }
 
+    const forceLine = lines.find(l => l.id === newMoLineId)
     const newMo: ManufacturingOrder = {
       id: `mo_${Date.now()}`,
       productId: newMoProductId,
@@ -255,6 +257,7 @@ export default function ManagerDashboard() {
       status: "PENDING",
       targetQty: targetQtyInBatches,
       qcStatus: "UNDONE",
+      originAgencyId: forceLine?.agencyId || "agence_main",
       ...(newMoScheduledDate && { programmedDate: newMoScheduledDate })
     }
     
@@ -268,7 +271,6 @@ export default function ManagerDashboard() {
     setNewMoScheduledDate("")
   }
 
-  // Handle product selection to auto-assign line
   const handleProductChange = (productId: string) => {
     setNewMoProductId(productId)
     const product = products.find(p => p.id === productId)
@@ -281,7 +283,6 @@ export default function ManagerDashboard() {
 
   return (
     <div className="w-full flex flex-col gap-8 pb-12">
-      {/* Header section: Asymmetric design */}
       <div className="flex flex-col md:flex-row gap-8 items-start justify-between">
         <motion.div 
           initial={{ opacity: 0, x: -20 }}
@@ -303,7 +304,6 @@ export default function ManagerDashboard() {
               {t("dash_btn_launch")}
             </button>
 
-            {/* Units / Quantity display toggle */}
             <div className="flex bg-muted/40 p-1 rounded-xl border border-border/50 w-max">
               <button
                 type="button"
@@ -327,7 +327,6 @@ export default function ManagerDashboard() {
           </div>
         </motion.div>
         
-        {/* KPI blocks */}
         <motion.div 
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -347,7 +346,6 @@ export default function ManagerDashboard() {
         </motion.div>
       </div>
 
-      {/* MO List */}
       <motion.div 
         variants={containerVariants}
         initial="hidden"
@@ -488,7 +486,6 @@ export default function ManagerDashboard() {
         )}
       </motion.div>
 
-      {/* Slide-out MO Drawer */}
       <AnimatePresence>
         {selectedMoId && (
           <ManufacturingOrderDrawer 
@@ -498,7 +495,6 @@ export default function ManagerDashboard() {
         )}
       </AnimatePresence>
 
-      {/* New MO Modal */}
       <AnimatePresence>
         {showNewMoModal && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center pointer-events-none p-4">
@@ -596,7 +592,6 @@ export default function ManagerDashboard() {
                     </div>
                   )}
  
-                  {/* Material check warnings */}
                   {showMaterialWarnings && materialWarnings.length > 0 && (
                     <div className="flex flex-col gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
                       <div className="flex items-center gap-2">

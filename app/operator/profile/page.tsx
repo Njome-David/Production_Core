@@ -3,6 +3,7 @@
 import React from "react"
 import { motion } from "framer-motion"
 import { useMockData } from "@/providers/MockFeedProductionProvider"
+import { useAuth } from "@/providers/AuthProvider"
 import { useTheme } from "next-themes"
 import { useLanguage } from "@/providers/LanguageProvider"
 import { UserCircle, Sun, Moon, Globe, Bell, Shield, CaretLeft } from "@phosphor-icons/react"
@@ -10,6 +11,7 @@ import Link from "next/link"
 
 export default function OperatorProfilePage() {
   const { activeSession } = useMockData()
+  const { logout } = useAuth()
   const { theme, setTheme } = useTheme()
   const { t, language, setLanguage } = useLanguage()
 
@@ -20,7 +22,7 @@ export default function OperatorProfilePage() {
     org: activeSession?.org_id || "org_beta_mills",
     stationName: activeSession?.active_station
       ? `Station: ${activeSession.active_station}`
-      : "Aucune station sélectionnée",
+      : t("operator_profile_no_station_selected"),
   }
 
   return (
@@ -37,9 +39,18 @@ export default function OperatorProfilePage() {
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ ease: [0.32, 0.72, 0, 1] as const, duration: 0.6 }}
+        className="flex items-center justify-between"
       >
-        <h1 className="text-3xl font-display text-foreground font-bold tracking-tight mb-2">{t("profile_title")}</h1>
-        <p className="text-muted-foreground">{t("profile_operator_desc")}</p>
+        <div>
+          <h1 className="text-3xl font-display text-foreground font-bold tracking-tight mb-2">{t("profile_title")}</h1>
+          <p className="text-muted-foreground">{t("profile_operator_desc")}</p>
+        </div>
+        <button
+          onClick={logout}
+          className="px-4 py-2 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-lg font-medium text-sm transition-colors h-fit"
+        >
+          Se déconnecter
+        </button>
       </motion.div>
 
       <motion.div

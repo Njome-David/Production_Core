@@ -4,8 +4,36 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ### Test Credentials
 To access the testing environment, use the following credentials on the login page:
+
+#### Owner (Chef d'entreprise)
 - **Email:** david@alpha-feed.com
 - **Password:** password
+- **Role:** Owner
+- **Organization:** Alpha Feed & Manufacturing
+
+#### Managers (Responsables d'agence)
+- **Email:** marie@alpha-feed.com
+- **Password:** password123
+- **Role:** Manager
+- **Agency:** Yaoundé HQ (Fabrication & Vente)
+
+- **Email:** paul@alpha-feed.com
+- **Password:** password123
+- **Role:** Manager
+- **Agency:** Douala Sales (Vente uniquement)
+
+#### Operators (Opérateurs)
+- **Email:** jean@alpha-feed.com
+- **Password:** password123
+- **Role:** Operator
+- **Agency:** Yaoundé HQ
+- **Assigned Machine:** Mixer 1
+
+- **Email:** fatima@alpha-feed.com
+- **Password:** password123
+- **Role:** Operator
+- **Agency:** Yaoundé HQ
+- **Assigned Machine:** Packager 1
 
 First, run the development server:
 
